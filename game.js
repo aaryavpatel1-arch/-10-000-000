@@ -1,22 +1,22 @@
-/* UNSANCTIONED 3D - GAME ENGINE */
+/* 10,000,000 - ENGINE & KRAKEN BOSS CODE */
 
 const state = {
   screen: 'title',
   hp: 100,
   hits: 0,
   inTutorial: true,
+  inKrakenBoss: false,
+  krakenHp: 100,
   eventTriggered: false
 };
 
-// UI DOM References
 const hudHp = document.getElementById('hud-hp');
 const hudHits = document.getElementById('hud-hits');
 const hudZone = document.getElementById('hud-zone');
 const screenTitle = document.getElementById('screen-title');
 
-// 3D Scene Objects
 let scene, camera, renderer;
-let player, opponent, npc, tentacle;
+let player, opponent, npc, wallTentacle, krakenBoss;
 let keys = {};
 let clock = new THREE.Clock();
 
@@ -27,7 +27,6 @@ function init3D() {
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
   
   renderer = new THREE.WebGLRenderer({ antialias: false });
-  // Downscale size for pixelated retro FPS graphics
   renderer.setSize(window.innerWidth / 2, window.innerHeight / 2, false);
   renderer.shadowMap.enabled = true;
   document.getElementById('game-container').appendChild(renderer.domElement);
@@ -40,7 +39,6 @@ function init3D() {
   torchLight.position.set(0, 3, 0);
   scene.add(torchLight);
 
-  // Build World Geometry & Entities
   buildDungeonEnvironment();
   createPlayer();
   createOpponent();
@@ -65,7 +63,7 @@ function buildDungeonEnvironment() {
   ceiling.rotation.x = Math.PI / 2;
   scene.add(ceiling);
 
-  // Perimeter Walls
+  // Walls
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x2a2620, roughness: 0.8 });
   
   const backWall = new THREE.Mesh(new THREE.BoxGeometry(30, 5, 1), wallMat);
@@ -92,7 +90,6 @@ function createPlayer() {
   player.add(camera);
 }
 
-// 3D Opponent for MMA Fight Tutorial
 function createOpponent() {
   opponent = new THREE.Group();
   
@@ -112,7 +109,6 @@ function createOpponent() {
   scene.add(opponent);
 }
 
-// 3D NPC standing near corridor wall
 function createNPC() {
   npc = new THREE.Group();
 
@@ -129,9 +125,8 @@ function createNPC() {
   scene.add(npc);
 }
 
-// 3D Jointed Tentacle hiding in the right wall
 function createWallTentacle() {
-  tentacle = new THREE.Group();
+  wallTentacle = new THREE.Group();
   const segmentCount = 6;
   const mat = new THREE.MeshStandardMaterial({ color: 0x1f5c66, roughness: 0.3 });
 
@@ -139,13 +134,45 @@ function createWallTentacle() {
     const radius = 0.35 - (i * 0.04);
     const seg = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + 0.05, 0.8, 8), mat);
     seg.position.y = i * 0.7;
-    tentacle.add(seg);
+    wallTentacle.add(seg);
   }
 
-  // Hidden initial placement inside right wall
-  tentacle.position.set(16, 1.5, -8);
-  tentacle.rotation.z = Math.PI / 2;
-  scene.add(tentacle);
+  wallTentacle.position.set(16, 1.5, -8);
+  wallTentacle.rotation.z = Math.PI / 2;
+  scene.add(wallTentacle);
+}
+
+// Spawn Giant Kraken Boss Entity
+function spawnKrakenBoss() {
+  krakenBoss = new THREE.Group();
+  const krakenMat = new THREE.MeshStandardMaterial({ color: 0x123138, roughness: 0.4 });
+
+  // Kraken Head/Mantle
+  const headGeo = new THREE.SphereGeometry(3, 16, 16);
+  const head = new THREE.Mesh(headGeo, krakenMat);
+  head.position.y = 3;
+  krakenBoss.add(head);
+
+  // Glowing Eye
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xd92b2b });
+  const eye = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), eyeMat);
+  eye.position.set(0, 3, 2.8);
+  krakenBoss.add(eye);
+
+  // Massive Boss Tentacles
+  for (let i = 0; i < 4; i++) {
+    const tGroup = new THREE.Group();
+    for (let j = 0; j < 5; j++) {
+      const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.4 - j*0.06, 0.5 - j*0.06, 1.2, 8), krakenMat);
+      seg.position.y = j * 1.0;
+      tGroup.add(seg);
+    }
+    tGroup.position.set((i - 1.5) * 2.5, 0, 1.5);
+    krakenBoss.add(tGroup);
+  }
+
+  krakenBoss.position.set(0, 0, -12);
+  scene.add(krakenBoss);
 }
 
 function setupControls() {
@@ -179,20 +206,22 @@ function updateGameLoop() {
   const delta = clock.getDelta();
 
   if (state.screen === 'game') {
-    // Movement Logic
     const speed = 4.0 * delta;
     if (keys['w']) player.translateZ(-speed);
     if (keys['s']) player.translateZ(speed);
     if (keys['a']) player.translateX(-speed);
     if (keys['d']) player.translateX(speed);
 
-    // Arena Boundaries
     player.position.x = Math.max(-13, Math.min(13, player.position.x));
     player.position.z = Math.max(-18, Math.min(18, player.position.z));
 
-    // Opponent Tracking in Fight Phase
     if (opponent && state.inTutorial) {
       opponent.lookAt(player.position.x, opponent.position.y, player.position.z);
+    }
+
+    // Animate Kraken Boss
+    if (krakenBoss && state.inKrakenBoss) {
+      krakenBoss.position.y = Math.sin(clock.getElapsedTime() * 2) * 0.5;
     }
   }
 
@@ -202,7 +231,5 @@ function updateGameLoop() {
 
 document.getElementById('btn-start').onclick = () => {
   screenTitle.classList.add('hidden');
-  state.screen = 'game';
-  init3D();
-  updateGameLoop();
+  startStoryIntro();
 };
