@@ -3,38 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>10,000,000</title>
+  <title>10,000,000 - Washed-Up Fighter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script type="importmap">
+ {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
 </head>
 <body>
-
   <div id="game-container">
-    <div id="crosshair"></div>
-    <div id="controls-hint">WASD = MOVE • MOUSE = LOOK • CLICK / SPACE = ATTACK • F = FLASHLIGHT</div>
+    <canvas id="gl-canvas"></canvas>
 
-    <div id="hud">
-      <div class="stat">ZONE <b id="hud-zone">BLACK MARKET RING</b></div>
-      <div class="stat">CONDITION 
-        <div class="hpbar"><div class="hpfill" id="hud-hp"></div></div>
+    <!-- HUD -->
+    <div id="hud" class="hidden">
+      <div id="top-hint">CLICK or SPACE to STRIKE</div>
+      <div id="zone-display">ZONE: ARENA LEVEL 1 / 100</div>
+      <div id="prize-display">PRIZE: $10,000,000</div>
+      <div id="flashlight-indicator">FLASHLIGHT: <span id="fl-status">OFF</span> (PRESS F)</div>
+      <div id="crosshair">+</div>
+      <div id="health-container">
+        <div id="health-label">HP</div>
+        <div id="health-bar-wrap"><div id="health-bar"></div></div>
       </div>
-      <div class="stat" style="color:var(--gold)">PRIZE: <b id="hud-hits">$10,000,000</b></div>
     </div>
 
-    <div id="screen-title" class="overlay">
-      <div class="title-main">10,000,000</div>
-      <div class="title-sub">WASHED-UP MMA FIGHTER vs THE BLACK MARKET ABYSS</div>
-      <button class="btn" id="btn-start">SIGN CONTRACT</button>
+    <!-- Dialogue Overlay -->
+    <div id="dialogue-overlay" class="hidden">
+      <div id="dialogue-box">
+        <h2 id="dialogue-title"></h2>
+        <p id="dialogue-text"></p>
+        <button id="dialogue-btn">CONTINUE</button>
+      </div>
     </div>
 
-    <div id="screen-dialogue" class="overlay hidden">
-      <div class="title-sub" id="dialogue-label">— CONTRACT LOG —</div>
-      <p id="dialogue-text"></p>
-      <button class="btn" id="btn-dialogue-next">CONTINUE</button>
+    <!-- Damage flash -->
+    <div id="damage-flash"></div>
+
+    <!-- Start Screen -->
+    <div id="start-screen">
+      <h1>10,000,000</h1>
+      <h2>WASHED-UP FIGHTER</h2>
+      <p>A Three.js Arena Horror</p>
+      <button id="start-btn">ENTER ARENA</button>
     </div>
   </div>
 
-  <script src="cutscenes.js"></script>
-  <script src="game.js"></script>
+  <script type="module" src="engine.js"></script>
+  <script type="module" src="cutscenes.js"></script>
+  <script type="module">
+    import { initGame } from './cutscenes.js';
+    document.getElementById('start-btn').addEventListener('click', () => {
+      initGame();
+    });
+  </script>
 </body>
 </html>
