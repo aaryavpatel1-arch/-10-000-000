@@ -1,0 +1,118 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Courier+Prime:wght@400;700&display=swap');
+
+:root {
+  --blood: #a11d1d;
+  --blood-bright: #d92b2b;
+  --bone: #e7e0c9;
+  --bone-dim: #8f8975;
+  --gold: #b9962f;
+  --abyss: #123138;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body, html {
+  width: 100%; height: 100%;
+  background: #000;
+  color: var(--bone);
+  font-family: 'Courier Prime', monospace;
+  overflow: hidden;
+  user-select: none;
+}
+
+#game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated; /* Classic low-poly retro style */
+}
+
+/* HUD STYLING */
+#hud {
+  position: absolute;
+  bottom: 0; left: 0; width: 100%;
+  height: 50px;
+  background: linear-gradient(180deg, rgba(20,18,16,0.8), rgba(11,10,8,0.95));
+  border-top: 2px solid #2a2620;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px;
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 2px;
+  z-index: 10;
+}
+
+.stat { display: flex; align-items: center; gap: 10px; font-size: 22px; color: var(--bone-dim); }
+.stat b { color: var(--bone); font-size: 26px; }
+.hpbar { width: 160px; height: 14px; background: #1a1712; border: 1px solid #3a352b; position: relative; }
+.hpfill { position: absolute; inset: 0; background: linear-gradient(90deg, var(--blood), var(--blood-bright)); width: 100%; transition: width .15s; }
+
+/* OVERLAYS & CUTSCENE UI */
+.overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 40px;
+  background: rgba(5,4,3,0.92);
+  z-index: 20;
+}
+.hidden { display: none !important; }
+
+.title-main {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 72px;
+  letter-spacing: 6px;
+  color: var(--bone);
+  text-shadow: 0 0 18px rgba(161,29,29,0.7), 3px 3px 0 #000;
+}
+
+.title-sub {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 3px;
+  color: var(--blood-bright);
+  margin-top: 8px;
+}
+
+#dialogue-text {
+  max-width: 600px;
+  margin-top: 16px;
+  line-height: 1.6;
+  color: var(--bone-dim);
+  font-size: 16px;
+}
+
+.btn {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  letter-spacing: 3px;
+  background: transparent;
+  border: 2px solid var(--blood);
+  color: var(--bone);
+  padding: 10px 32px;
+  margin-top: 24px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn:hover { background: var(--blood); color: #111; box-shadow: 0 0 20px rgba(161,29,29,0.8); }
+
+#controls-hint {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.6); border: 1px solid #2a2620;
+  padding: 6px 18px; font-size: 13px; color: var(--bone-dim);
+  letter-spacing: 1px; pointer-events: none; z-index: 10;
+}
+
+#crosshair {
+  position: absolute; top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  background: rgba(231,224,201,0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+}
