@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UNSANCTIONED 3D</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+  <div id="game-container">
+    <div id="crosshair"></div>
+    <div id="controls-hint">WASD = MOVE • MOUSE = LOOK • CLICK / SPACE = ATTACK</div>
+
+    <div id="hud">
+      <div class="stat">ZONE <b id="hud-zone">3D CAGE</b></div>
+      <div class="stat">CONDITION 
+        <div class="hpbar"><div class="hpfill" id="hud-hp"></div></div>
+      </div>
+      <div class="stat" style="color:var(--gold)">STRIKES <b id="hud-hits">0</b></div>
+    </div>
+
+    <div id="screen-title" class="overlay">
+      <div class="title-main">UNSANCTIONED 3D</div>
+      <div class="title-sub">RETRO TERROR ARENA</div>
+      <button class="btn" id="btn-start">ENTER 3D BOUT</button>
+    </div>
+
+    <div id="screen-dialogue" class="overlay hidden">
+      <div class="title-sub" id="dialogue-label">— INCIDENT REPORT —</div>
+      <p id="dialogue-text"></p>
+      <button class="btn" id="btn-dialogue-next">CONTINUE</button>
+    </div>
+  </div>
+
+  <script src="cutscenes.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
