@@ -1,114 +1,214 @@
-/* 10,000,000 - WASHED-UP FIGHTER STORY & CUTSCENE EVENTS */
+import {
+  initEngine, setupInput, state, callbacks,
+  setPhase, setShipVisibility, setDungeonVisibility, setBossArenaVisibility,
+  spawnEnemy, spawnShadowTentacle, spawnKraken, triggerStorm,
+  updateHUD, resetGame
+} from './engine.js';
 
-const screenDialogue = document.getElementById('screen-dialogue');
-const dialogueText = document.getElementById('dialogue-text');
+let dialogueOverlay, dialogueTitle, dialogueText, dialogueBtn;
+let hud, startScreen;
+let dialogueQueue = [];
+let pendingContinue = null;
 
-// Story Intro: Washed-up fighter entering Black-Market game
-function startStoryIntro() {
-  showCutsceneDialogue(
-    "CONTRACT SIGNED: $10,000,000",
-    "Once a top-tier fighter, your career ended in scandal. Broke and out of options, you signed a dark-web contract promising $10,000,000. As the digital ink dried, the floor vanished—and you were sucked into an underground arena with only a heavy flashlight.",
-    () => {
-      state.screen = 'game';
-      init3D();
-      updateGameLoop();
-    }
-  );
+export function initGame() {
+  dialogueOverlay = document.getElementById('dialogue-overlay');
+  dialogueTitle = document.getElementById('dialogue-title');
+  dialogueText = document.getElementById('dialogue-text');
+  dialogueBtn = document.getElementById('dialogue-btn');
+  hud = document.getElementById('hud');
+  startScreen = document.getElementById('start-screen');
+
+  dialogueBtn.addEventListener('click', onDialogueContinue);
+
+  initEngine();
+  setupInput();
+
+  callbacks.onDummyComplete = onTutorialComplete;
+  callbacks.onEnemyDefeated = onEnemyDefeated;
+  callbacks.onPlayerDead = onPlayerDead;
+  callbacks.onTentacleSeen = onTentacleSeen;
+  callbacks.onAllTentaclesDead = onAllTentaclesDead;
+  callbacks.onBossDefeated = onBossDefeated;
+
+  startScreen.style.display = 'none';
+  hud.classList.remove('hidden');
+
+  beginTutorial();
 }
 
-function registerStrike() {
-  state.hits++;
-
-  // Warm-up sparring in the virtual ring
-  if (state.inTutorial && player.position.distanceTo(opponent.position) < 3) {
-    opponent.position.z -= 0.3;
-    if (state.hits >= 5) {
-      concludeMMATutorial();
-    }
-  }
-
-  // Final Kraken Boss Phase
-  if (state.inKrakenBoss && player.position.distanceTo(krakenBoss.position) < 8) {
-    state.krakenHp -= 20;
-    if (state.krakenHp <= 0) {
-      triggerKrakenVictory();
-    }
-  }
-}
-
-function concludeMMATutorial() {
-  state.inTutorial = false;
-  hudZone.textContent = "CORRIDOR SECTOR 4";
-
-  showCutsceneDialogue(
-    "LEVEL 1 COMPLETE",
-    "Your virtual opponent dissolves. You switch on your heavy flashlight and shine it down the narrow black corridor, searching for the prize gateway.",
-    () => {
-      state.screen = 'game';
-      runWallTentacleAmbush();
-    }
-  );
-}
-
-function runWallTentacleAmbush() {
-  state.eventTriggered = true;
-  let progress = 0;
-
-  const eventInterval = setInterval(() => {
-    progress += 0.05;
-
-    // Tentacle reaches out of wall
-    if (progress <= 1.0) {
-      wallTentacle.position.x = 16 - (progress * 4.5);
-    } 
-    // Snatches another trapped contender into wall
-    else if (progress <= 2.0) {
-      const pull = progress - 1.0;
-      npc.position.x = 11.5 + (pull * 4.5);
-      wallTentacle.position.x = 11.5 + (pull * 4.5);
-    } 
-    // Trigger Kraken Abyss Final Boss
-    else {
-      scene.remove(npc);
-      scene.remove(wallTentacle);
-      scene.remove(opponent);
-      clearInterval(eventInterval);
-
-      showCutsceneDialogue(
-        "THE $10,000,000 BOSS: KRAKEN LAIR",
-        "Your flashlight beam catches a massive black tentacle dragging another contender into the wall! The arena floor collapses into an underground abyss—a giant Kraken rises to claim the final purse!",
-        () => {
-          state.screen = 'game';
-          state.inKrakenBoss = true;
-          hudZone.textContent = "ABYSS: KRAKEN LAIR";
-          spawnKrakenBoss();
-        }
-      );
-    }
-  }, 30);
-}
-
-function triggerKrakenVictory() {
-  scene.remove(krakenBoss);
-  showCutsceneDialogue(
-    "CONTRACT FULFILLED",
-    "The giant Kraken falls back into the abyss. The simulation destabilizes and ejects you back into the real world—with $10,000,000 wired straight into your bank account.",
-    () => {
-      window.location.reload();
-    }
-  );
-}
-
-function showCutsceneDialogue(title, message, callback) {
-  state.screen = 'dialogue';
+// ===== DIALOGUE SYSTEM =====
+function showDialogue(title, text) {
+  setPhase('cutscene');
+  dialogueTitle.textContent = title;
+  dialogueText.textContent = text;
+  dialogueOverlay.classList.remove('hidden');
   document.exitPointerLock();
-  
-  document.getElementById('dialogue-label').textContent = title;
-  dialogueText.textContent = message;
-  screenDialogue.classList.remove('hidden');
+}
 
-  document.getElementById('btn-dialogue-next').onclick = () => {
-    screenDialogue.classList.add('hidden');
-    if (callback) callback();
+function hideDialogue() {
+  dialogueOverlay.classList.add('hidden');
+}
+
+function onDialogueContinue() {
+  if (state.phase !== 'cutscene') return;
+
+  if (dialogueQueue.length > 0) {
+    const next = dialogueQueue.shift();
+    showDialogue(next.title, next.text);
+    if (next.onShow) next.onShow();
+  } else {
+    hideDialogue();
+    if (pendingContinue) {
+      const cb = pendingContinue;
+      pendingContinue = null;
+      cb();
+    }
+  }
+}
+
+function queueDialogues(list, onDone) {
+  dialogueQueue = [...list];
+  pendingContinue = onDone;
+  if (dialogueQueue.length > 0) {
+    const first = dialogueQueue.shift();
+    showDialogue(first.title, first.text);
+    if (first.onShow) first.onShow();
+  }
+}
+
+// ===== TUTORIAL =====
+function beginTutorial() {
+  setPhase('tutorial');
+  setShipVisibility(true);
+  setDungeonVisibility(false);
+  setBossArenaVisibility(false);
+  state.dummyHits = 0;
+  state.tutorialComplete = false;
+  state.hp = 100;
+  state.level = 0;
+  updateHUD();
+
+  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. The lantern swings with the swell. Land 5 strikes on the sparring dummy to complete your warm-up. Use LEFT CLICK or SPACE.');
+  pendingContinue = () => {
+    const canvas = document.getElementById('gl-canvas');
+    if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+    updateHUD();
   };
+  dialogueQueue = [];
+}
+
+function onTutorialComplete() {
+  setPhase('cutscene');
+  document.exitPointerLock();
+  triggerStorm(2500);
+
+  setTimeout(() => {
+    queueDialogues([
+      {
+        title: 'WASHED UP',
+        text: 'A rogue wave shatters the hull with the sound of a world ending. Splinters and black water swallow the hold. You wake up gasping on a pitch-black beach, salt burning your lungs. The ship is gone. You are alone.'
+      },
+      {
+        title: 'THE $10,000,000 CONTRACT',
+        text: 'A figure in an obsidian duster approaches through the fog. He opens a briefcase pulsing with pale green light. "Syndicate needs a cleaner. One hundred arena sectors. Survive, and ten million is yours. Refuse, and the tide takes you." You sign in blood.'
+      }
+    ], () => {
+      setShipVisibility(false);
+      beginArena();
+    });
+  }, 2500);
+}
+
+// ===== ARENA =====
+function beginArena() {
+  setPhase('arena');
+  setDungeonVisibility(true);
+  state.level = 1;
+  nextArenaLevel();
+  updateHUD();
+
+  const canvas = document.getElementById('gl-canvas');
+  if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+}
+
+function nextArenaLevel() {
+  if (state.level > 99) {
+    startBossPhase();
+    return;
+  }
+  spawnEnemy(state.level);
+
+  if (state.level <= 99) {
+    spawnShadowTentacle();
+  }
+
+  updateHUD();
+}
+
+function onEnemyDefeated() {
+  if (state.level >= 99) {
+    setPhase('cutscene');
+    document.exitPointerLock();
+    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Salt spray drenches the air. Chains snap like twigs. Something vast and ancient breaches the dark water — the Kraken awaits.');
+    pendingContinue = () => {
+      startBossPhase();
+    };
+    dialogueQueue = [];
+ return;
+  }
+
+  state.level++;
+  nextArenaLevel();
+}
+
+function onTentacleSeen() {
+  const hint = document.getElementById('top-hint');
+  if (hint) {
+    hint.textContent = 'DID SOMETHING MOVE IN THE SHADOWS?';
+    setTimeout(() => { if (hint) hint.textContent = 'CLICK or SPACE to STRIKE'; }, 3500);
+  }
+}
+
+// ===== BOSS =====
+function startBossPhase() {
+  setPhase('boss');
+  setDungeonVisibility(false);
+  setBossArenaVisibility(true);
+  spawnKraken();
+  updateHUD();
+
+  const canvas = document.getElementById('gl-canvas');
+  if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+}
+
+function onAllTentaclesDead() {
+  showDialogue('THE CORE IS EXPOSED', 'All six tentacles collapse into twitching ruin. The Kraken\'s crimson eye boils with rage. Strike the core now before it recovers!');
+  pendingContinue = () => {
+    const canvas = document.getElementById('gl-canvas');
+    if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+  };
+  dialogueQueue = [];
+}
+
+function onBossDefeated() {
+  setPhase('cutscene');
+  document.exitPointerLock();
+  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water with a deafening roar that seals the abyss. The syndicate broker steps from the shadows and hands you the glowing briefcase. Ten million dollars, paid in full. Your name is legend... for now.');
+  pendingContinue = () => {
+    resetGame();
+    beginTutorial();
+  };
+  dialogueQueue = [];
+}
+
+// ===== DEATH / RESET =====
+function onPlayerDead() {
+  setPhase('cutscene');
+  document.exitPointerLock();
+  showDialogue('KNOCKED OUT', 'You collapse in the dust, your vision swimming. Arena medics drag you to the infirmary. The contract is still waiting, but the prize just got farther away.');
+  pendingContinue = () => {
+    resetGame();
+    beginTutorial();
+  };
+  dialogueQueue = [];
 }
