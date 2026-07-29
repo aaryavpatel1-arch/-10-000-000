@@ -42,7 +42,7 @@ function showDialogue(title, text) {
   dialogueTitle.textContent = title;
   dialogueText.textContent = text;
   dialogueOverlay.classList.remove('hidden');
-  document.exitPointerLock();
+  try { document.exitPointerLock(); } catch (e) { /* ignore if not available */ }
 }
 
 function hideDialogue() {
@@ -88,7 +88,8 @@ function beginTutorial() {
   state.level = 0;
   updateHUD();
 
-  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. The lantern swings with the swell. Land 5 strikes on the sparring dummy to complete your warm-up. Use the left mouse button or SPACE to strike.');
+  // Short, safe dialogue text to avoid syntax/parsing issues
+  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. Land 5 strikes on the sparring dummy to complete your warm-up. Use CLICK or SPACE to strike.');
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
@@ -99,18 +100,18 @@ function beginTutorial() {
 
 function onTutorialComplete() {
   setPhase('cutscene');
-  document.exitPointerLock();
+  try { document.exitPointerLock(); } catch (e) {}
   triggerStorm(2500);
 
   setTimeout(() => {
     queueDialogues([
       {
         title: 'WASHED UP',
-        text: 'A rogue wave shatters the hull with the sound of a world ending. Splinters and black water swallow the hold. You wake up gasping on a pitch-black beach, salt burning your lungs. The world is silent except for distant gulls.'
+        text: 'A rogue wave shatters the hull. You wash ashore into a foggy, hostile world. Prepare yourself for the arena. '
       },
       {
         title: 'THE $10,000,000 CONTRACT',
-        text: 'A figure in an obsidian duster approaches through the fog. He opens a briefcase pulsing with pale green light. "Syndicate needs a cleaner. One hundred arena sectors. Survive, and the prize is yours."'
+        text: 'A shadowy broker offers a deadly contract: survive a hundred arena sectors and claim the prize.'
       }
     ], () => {
       setShipVisibility(false);
@@ -148,8 +149,8 @@ function nextArenaLevel() {
 function onEnemyDefeated() {
   if (state.level >= 99) {
     setPhase('cutscene');
-    document.exitPointerLock();
-    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Salt spray drenches the air. Chains snap like twigs. Something vast and ancient breaches the surface.');
+    try { document.exitPointerLock(); } catch (e) {}
+    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Something vast breaches the surface.');
     pendingContinue = () => {
       startBossPhase();
     };
@@ -182,7 +183,7 @@ function startBossPhase() {
 }
 
 function onAllTentaclesDead() {
-  showDialogue('THE CORE IS EXPOSED', 'All six tentacles collapse into twitching ruin. The Kraken\\'s crimson eye boils with rage. Strike the core now before it recovers!');
+  showDialogue('THE CORE IS EXPOSED', "All six tentacles collapse into twitching ruin. The Kraken's crimson eye boils with rage. Strike the core now before it recovers!");
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
@@ -192,8 +193,8 @@ function onAllTentaclesDead() {
 
 function onBossDefeated() {
   setPhase('cutscene');
-  document.exitPointerLock();
-  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water with a deafening roar that seals the abyss. The syndicate broker steps from the shadows and hands you the glowing briefcase.');
+  try { document.exitPointerLock(); } catch (e) {}
+  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water. The syndicate broker steps from the shadows and hands you the glowing briefcase.');
   pendingContinue = () => {
     resetGame();
     beginTutorial();
@@ -204,8 +205,8 @@ function onBossDefeated() {
 // ===== DEATH / RESET =====
 function onPlayerDead() {
   setPhase('cutscene');
-  document.exitPointerLock();
-  showDialogue('KNOCKED OUT', 'You collapse in the dust, your vision swimming. Arena medics drag you to the infirmary. The contract is still waiting, but the prize just got farther away.');
+  try { document.exitPointerLock(); } catch (e) {}
+  showDialogue('KNOCKED OUT', 'You collapse in the dust. Arena medics drag you to the infirmary.');
   pendingContinue = () => {
     resetGame();
     beginTutorial();
