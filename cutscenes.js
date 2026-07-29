@@ -18,7 +18,10 @@ export function initGame() {
   hud = document.getElementById('hud');
   startScreen = document.getElementById('start-screen');
 
-  dialogueBtn.addEventListener('click', onDialogueContinue);
+  if (dialogueBtn) {
+    dialogueBtn.removeEventListener('click', onDialogueContinue);
+    dialogueBtn.addEventListener('click', onDialogueContinue);
+  }
 
   initEngine();
   setupInput();
@@ -30,8 +33,8 @@ export function initGame() {
   callbacks.onAllTentaclesDead = onAllTentaclesDead;
   callbacks.onBossDefeated = onBossDefeated;
 
-  startScreen.style.display = 'none';
-  hud.classList.remove('hidden');
+  if (startScreen) startScreen.style.display = 'none';
+  if (hud) hud.classList.remove('hidden');
 
   beginTutorial();
 }
@@ -39,14 +42,14 @@ export function initGame() {
 // ===== DIALOGUE SYSTEM =====
 function showDialogue(title, text) {
   setPhase('cutscene');
-  dialogueTitle.textContent = title;
-  dialogueText.textContent = text;
-  dialogueOverlay.classList.remove('hidden');
-  try { document.exitPointerLock(); } catch (e) { /* ignore if not available */ }
+  if (dialogueTitle) dialogueTitle.textContent = title;
+  if (dialogueText) dialogueText.textContent = text;
+  if (dialogueOverlay) dialogueOverlay.classList.remove('hidden');
+  try { document.exitPointerLock(); } catch (e) { /* ignore pointer lock errors */ }
 }
 
 function hideDialogue() {
-  dialogueOverlay.classList.add('hidden');
+  if (dialogueOverlay) dialogueOverlay.classList.add('hidden');
 }
 
 function onDialogueContinue() {
@@ -88,11 +91,16 @@ function beginTutorial() {
   state.level = 0;
   updateHUD();
 
-  // Short, safe dialogue text to avoid syntax/parsing issues
-  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. Land 5 strikes on the sparring dummy to complete your warm-up. Use CLICK or SPACE to strike.');
+  showDialogue(
+    'TUTORIAL: SHIP DECK', 
+    'You are below deck of the merchant vessel Sable Crown. Land 5 strikes on the sparring dummy to complete your warm-up. Use CLICK or SPACE to strike.'
+  );
+  
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
-    if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+    if (canvas && canvas.requestPointerLock) {
+      try { canvas.requestPointerLock(); } catch(e) {}
+    }
     updateHUD();
   };
   dialogueQueue = [];
@@ -107,7 +115,7 @@ function onTutorialComplete() {
     queueDialogues([
       {
         title: 'WASHED UP',
-        text: 'A rogue wave shatters the hull. You wash ashore into a foggy, hostile world. Prepare yourself for the arena. '
+        text: 'A rogue wave shatters the hull. You wash ashore into a foggy, hostile world. Prepare yourself for the arena.'
       },
       {
         title: 'THE $10,000,000 CONTRACT',
@@ -129,7 +137,9 @@ function beginArena() {
   updateHUD();
 
   const canvas = document.getElementById('gl-canvas');
-  if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+  if (canvas && canvas.requestPointerLock) {
+    try { canvas.requestPointerLock(); } catch(e) {}
+  }
 }
 
 function nextArenaLevel() {
@@ -150,7 +160,10 @@ function onEnemyDefeated() {
   if (state.level >= 99) {
     setPhase('cutscene');
     try { document.exitPointerLock(); } catch (e) {}
-    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Something vast breaches the surface.');
+    showDialogue(
+      'LEVEL 100: THE ABYSS GATEWAY', 
+      'The arena floor drops away into a subterranean ocean pit. Something vast breaches the surface.'
+    );
     pendingContinue = () => {
       startBossPhase();
     };
@@ -166,7 +179,9 @@ function onTentacleSeen() {
   const hint = document.getElementById('top-hint');
   if (hint) {
     hint.textContent = 'DID SOMETHING MOVE IN THE SHADOWS?';
-    setTimeout(() => { if (hint) hint.textContent = 'CLICK or SPACE to STRIKE'; }, 3500);
+    setTimeout(() => { 
+      if (hint) hint.textContent = 'CLICK or SPACE to STRIKE'; 
+    }, 3500);
   }
 }
 
@@ -179,14 +194,21 @@ function startBossPhase() {
   updateHUD();
 
   const canvas = document.getElementById('gl-canvas');
-  if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+  if (canvas && canvas.requestPointerLock) {
+    try { canvas.requestPointerLock(); } catch(e) {}
+  }
 }
 
 function onAllTentaclesDead() {
-  showDialogue('THE CORE IS EXPOSED', "All six tentacles collapse into twitching ruin. The Kraken's crimson eye boils with rage. Strike the core now before it recovers!");
+  showDialogue(
+    'THE CORE IS EXPOSED', 
+    "All six tentacles collapse into twitching ruin. The Kraken's crimson eye boils with rage. Strike the core now before it recovers!"
+  );
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
-    if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
+    if (canvas && canvas.requestPointerLock) {
+      try { canvas.requestPointerLock(); } catch(e) {}
+    }
   };
   dialogueQueue = [];
 }
@@ -194,7 +216,10 @@ function onAllTentaclesDead() {
 function onBossDefeated() {
   setPhase('cutscene');
   try { document.exitPointerLock(); } catch (e) {}
-  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water. The syndicate broker steps from the shadows and hands you the glowing briefcase.');
+  showDialogue(
+    'CONTRACT COMPLETE', 
+    'The beast sinks into the black water. The syndicate broker steps from the shadows and hands you the glowing briefcase.'
+  );
   pendingContinue = () => {
     resetGame();
     beginTutorial();
