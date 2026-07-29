@@ -3,7 +3,7 @@ import {
   setPhase, setShipVisibility, setDungeonVisibility, setBossArenaVisibility,
   spawnEnemy, spawnShadowTentacle, spawnKraken, triggerStorm,
   updateHUD, resetGame
-} from './engine.js';
+} from './game.js';
 
 let dialogueOverlay, dialogueTitle, dialogueText, dialogueBtn;
 let hud, startScreen;
@@ -88,7 +88,7 @@ function beginTutorial() {
   state.level = 0;
   updateHUD();
 
-  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. The lantern swings with the swell. Land 5 strikes on the sparring dummy to complete your warm-up. Use LEFT CLICK or SPACE to strike, and move with WASD. Press F to toggle your flashlight.');
+  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. The lantern swings with the swell. Land 5 strikes on the sparring dummy to complete your warm-up. Use LEFT[...]');
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
@@ -106,11 +106,11 @@ function onTutorialComplete() {
     queueDialogues([
       {
         title: 'WASHED UP',
-        text: 'A rogue wave shatters the hull with the sound of a world ending. Splinters and black water swallow the hold. You wake up gasping on a pitch-black beach, salt burning your lungs. The ship is gone and a fog hangs low over the water.'
+        text: 'A rogue wave shatters the hull with the sound of a world ending. Splinters and black water swallow the hold. You wake up gasping on a pitch-black beach, salt burning your lungs. The shi[...]'
       },
       {
         title: 'THE $10,000,000 CONTRACT',
-        text: 'A figure in an obsidian duster approaches through the fog. He opens a briefcase pulsing with pale green light. "Syndicate needs a cleaner. One hundred arena sectors. Survive, and ten million is yours."'
+        text: 'A figure in an obsidian duster approaches through the fog. He opens a briefcase pulsing with pale green light. "Syndicate needs a cleaner. One hundred arena sectors. Survive, and ten mi[...]'
       }
     ], () => {
       setShipVisibility(false);
@@ -149,7 +149,7 @@ function onEnemyDefeated() {
   if (state.level >= 99) {
     setPhase('cutscene');
     document.exitPointerLock();
-    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Salt spray drenches the air. Chains snap like twigs. Something vast and ancient breaches the surface, and a low, hungry roar fills the chamber.');
+    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Salt spray drenches the air. Chains snap like twigs. Something vast and ancient breaches the[...]');
     pendingContinue = () => {
       startBossPhase();
     };
@@ -193,7 +193,7 @@ function onAllTentaclesDead() {
 function onBossDefeated() {
   setPhase('cutscene');
   document.exitPointerLock();
-  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water with a deafening roar that seals the abyss. The syndicate broker steps from the shadows and hands you the glowing briefcase. The prize is yours.');
+  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water with a deafening roar that seals the abyss. The syndicate broker steps from the shadows and hands you the glowing briefcase. T[...]');
   pendingContinue = () => {
     resetGame();
     beginTutorial();
