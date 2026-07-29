@@ -337,7 +337,8 @@ export function spawnKraken() {
   state.coreExposed = false;
 }
 
-// ===== INPUT =====nexport function setupInput() {
+// ===== INPUT =====
+export function setupInput() {
   const canvas = document.getElementById('gl-canvas');
 
   canvas.addEventListener('click', () => {
@@ -486,7 +487,8 @@ function updatePlayer(dt) {
   camera.position.y = 1.6;
 }
 
-// ===== COMBAT =====nexport function playerAttack() {
+// ===== COMBAT =====
+export function playerAttack() {
   // Recoil
   cameraEuler.x += 0.06;
   setTimeout(() => { cameraEuler.x -= 0.06; camera.rotation.copy(cameraEuler); }, 60);
