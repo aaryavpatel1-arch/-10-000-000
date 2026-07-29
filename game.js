@@ -211,7 +211,8 @@ function buildBossArena() {
   ring.position.y = -0.1;
   group.add(ring);
 
-  // Barriers  for (let i = 0; i < 12; i++) {
+  // Barriers
+  for (let i = 0; i < 12; i++) {
     const ang = (i / 12) * Math.PI * 2;
     const b = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 0.4), new THREE.MeshStandardMaterial({ color: 0x222 }));
     b.position.set(Math.cos(ang) * 8, 0.4, Math.sin(ang) * 8);
@@ -336,8 +337,7 @@ export function spawnKraken() {
   state.coreExposed = false;
 }
 
-// ===== INPUT =====
-export function setupInput() {
+// ===== INPUT =====nexport function setupInput() {
   const canvas = document.getElementById('gl-canvas');
 
   canvas.addEventListener('click', () => {
@@ -486,8 +486,7 @@ function updatePlayer(dt) {
   camera.position.y = 1.6;
 }
 
-// ===== COMBAT =====
-export function playerAttack() {
+// ===== COMBAT =====nexport function playerAttack() {
   // Recoil
   cameraEuler.x += 0.06;
   setTimeout(() => { cameraEuler.x -= 0.06; camera.rotation.copy(cameraEuler); }, 60);
