@@ -56,12 +56,29 @@
   </div>
 
   <script type="module" src="engine.js"></script>
-  <script type="module" src="cutscenes.js"></script>
-  <script type="module">
-    import { initGame } from './cutscenes.js';
-    document.getElementById('start-btn').addEventListener('click', () => {
-      initGame();
-    });
+  <script>
+    // Attach the click listener immediately so the UI is responsive even if a module
+    // fails to parse when the page loads. We dynamically import the cutscenes module
+    // on demand and surface any load/parse errors to the console and user.
+    const startBtn = document.getElementById('start-btn');
+    if (startBtn) {
+      startBtn.addEventListener('click', async () => {
+        try {
+          const mod = await import('./cutscenes.js');
+          if (mod && typeof mod.initGame === 'function') {
+            mod.initGame();
+          } else {
+            console.error('cutscenes.js loaded but initGame not found', mod);
+            alert('Game module loaded but initGame not found. Check console for details.');
+          }
+        } catch (err) {
+          console.error('Failed to load cutscenes.js:', err);
+          alert('An error occurred loading the game. See console for details.');
+        }
+      });
+    } else {
+      console.error('start-btn not found in DOM');
+    }
   </script>
 </body>
 </html>
