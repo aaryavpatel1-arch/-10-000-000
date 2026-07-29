@@ -88,7 +88,7 @@ function beginTutorial() {
   state.level = 0;
   updateHUD();
 
-  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. The lantern swings with the swell. Land 5 strikes on the sparring dummy to complete your warm-up. Use LEFT[...]');
+  showDialogue('TUTORIAL: SHIP DECK', 'You are below deck of the merchant vessel Sable Crown. The lantern swings with the swell. Land 5 strikes on the sparring dummy to complete your warm-up. Use the left mouse button or SPACE to strike.');
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
@@ -106,11 +106,11 @@ function onTutorialComplete() {
     queueDialogues([
       {
         title: 'WASHED UP',
-        text: 'A rogue wave shatters the hull with the sound of a world ending. Splinters and black water swallow the hold. You wake up gasping on a pitch-black beach, salt burning your lungs. The shi[...]'
+        text: 'A rogue wave shatters the hull with the sound of a world ending. Splinters and black water swallow the hold. You wake up gasping on a pitch-black beach, salt burning your lungs. The world is silent except for distant gulls.'
       },
       {
         title: 'THE $10,000,000 CONTRACT',
-        text: 'A figure in an obsidian duster approaches through the fog. He opens a briefcase pulsing with pale green light. "Syndicate needs a cleaner. One hundred arena sectors. Survive, and ten mi[...]'
+        text: 'A figure in an obsidian duster approaches through the fog. He opens a briefcase pulsing with pale green light. "Syndicate needs a cleaner. One hundred arena sectors. Survive, and the prize is yours."'
       }
     ], () => {
       setShipVisibility(false);
@@ -149,7 +149,7 @@ function onEnemyDefeated() {
   if (state.level >= 99) {
     setPhase('cutscene');
     document.exitPointerLock();
-    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Salt spray drenches the air. Chains snap like twigs. Something vast and ancient breaches the[...]');
+    showDialogue('LEVEL 100: THE ABYSS GATEWAY', 'The arena floor drops away into a subterranean ocean pit. Salt spray drenches the air. Chains snap like twigs. Something vast and ancient breaches the surface.');
     pendingContinue = () => {
       startBossPhase();
     };
@@ -182,7 +182,7 @@ function startBossPhase() {
 }
 
 function onAllTentaclesDead() {
-  showDialogue('THE CORE IS EXPOSED', 'All six tentacles collapse into twitching ruin. The Kraken\'s crimson eye boils with rage. Strike the core now before it recovers!');
+  showDialogue('THE CORE IS EXPOSED', 'All six tentacles collapse into twitching ruin. The Kraken\\'s crimson eye boils with rage. Strike the core now before it recovers!');
   pendingContinue = () => {
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) canvas.requestPointerLock();
@@ -193,7 +193,7 @@ function onAllTentaclesDead() {
 function onBossDefeated() {
   setPhase('cutscene');
   document.exitPointerLock();
-  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water with a deafening roar that seals the abyss. The syndicate broker steps from the shadows and hands you the glowing briefcase. T[...]');
+  showDialogue('CONTRACT COMPLETE', 'The beast sinks into the black water with a deafening roar that seals the abyss. The syndicate broker steps from the shadows and hands you the glowing briefcase.');
   pendingContinue = () => {
     resetGame();
     beginTutorial();
