@@ -13,6 +13,7 @@ html, body {
   background: #0e1118;
   color: #e0e0e0;
   font-family: 'Courier Prime', monospace;
+  user-select: none;
 }
 
 #game-container {
@@ -259,7 +260,6 @@ canvas#gl-canvas {
   transform: translateY(-2px);
 }
 
-/* Misc */
 .hidden {
   display: none !important;
 }
