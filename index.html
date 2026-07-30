@@ -3,64 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>10,000,000 - Washed-Up Fighter</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+  <title>Living Maze Game</title>
   <link rel="stylesheet" href="style.css">
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
 </head>
 <body>
-  <div id="game-container">
-    <canvas id="gl-canvas"></canvas>
 
-    <div id="hud" class="hidden">
-      <div id="top-hint">WASD to MOVE | CLICK or SPACE to STRIKE</div>
-      <div id="zone-display">ZONE: SHIP DECK</div>
-      <div id="prize-display">PRIZE: $10,000,000</div>
-      <div id="flashlight-indicator">FLASHLIGHT: <span id="fl-status">OFF</span> (PRESS F)</div>
-      <div id="crosshair">+</div>
-      <div id="health-container">
-        <div id="health-label">HP</div>
-        <div id="health-bar-wrap"><div id="health-bar"></div></div>
-      </div>
+  <canvas id="gl-canvas"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="zone-display">ZONE: SHIP DECK</div>
+    <div id="top-hint">STRIKE THE DUMMY 5 TIMES TO PREPARE</div>
+    
+    <div class="bar-container">
+      <span class="bar-label">HP:</span>
+      <div class="bar-bg"><div id="health-bar"></div></div>
     </div>
 
-    <div id="dialogue-overlay" class="hidden">
-      <div id="dialogue-box">
-        <h2 id="dialogue-title"></h2>
-        <p id="dialogue-text"></p>
-        <button id="dialogue-btn" type="button">CONTINUE</button>
-      </div>
+    <div class="battery-container">
+      <span class="bar-label">FLASHLIGHT (F):</span>
+      <span id="fl-status">OFF (100%)</span>
     </div>
+  </div>
 
-    <div id="damage-flash"></div>
-
-    <div id="start-screen">
-      <h1>10,000,000</h1>
-      <h2>WASHED-UP FIGHTER</h2>
-      <p>A Three.js Arena Horror</p>
-      <button id="start-btn" type="button">ENTER ARENA</button>
-    </div>
+  <div id="start-screen">
+    <h1>THE LIVING MAZE</h1>
+    <button id="start-btn">CLICK TO PLAY</button>
   </div>
 
   <script type="module">
     import { initGame } from './cutscenes.js';
-
-    const startBtn = document.getElementById('start-btn');
-    if (startBtn) {
-      startBtn.addEventListener('click', () => {
-        document.getElementById('start-screen').style.display = 'none';
-        initGame();
-      });
-    }
+    document.getElementById('start-btn').addEventListener('click', () => {
+      initGame();
+    });
   </script>
 </body>
 </html>
