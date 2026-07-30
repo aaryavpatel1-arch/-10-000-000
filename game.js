@@ -38,9 +38,9 @@ const groups = {
 // Entities & Mechanics
 const entities = {
   dummy: null,
-  enemies: [],        // Array for multiple enemies
-  projectiles: [],    // Ranged enemy projectiles
-  pickups: [],        // Health & Battery pickups
+  enemies: [],        // Multiple active NPCs
+  projectiles: [],    // Crimson Spitter Projectiles
+  pickups: [],        // Health & Battery Pickups
   tentacle: null,
   kraken: null,
   ladder: null,
@@ -48,7 +48,7 @@ const entities = {
   livingWallDebris: []
 };
 
-const colliders = []; // Wall Bounding Boxes for collisions
+const colliders = [];
 
 // Cutscene & Motion State
 const cutsceneState = {
@@ -150,7 +150,7 @@ function setupShipDeck() {
   lanternLight.position.set(0, 3.6, -2);
   groups.ship.add(lanternLight);
 
-  // Training Dummy
+  // Dummy Target
   entities.dummy = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.2, 16), ironMat);
   base.position.y = 0.1;
@@ -168,11 +168,6 @@ function setupShipDeck() {
   head.position.y = 2.3;
   entities.dummy.add(head);
 
-  const armUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), woodDark);
-  armUpper.rotation.set(0, 0.3, Math.PI / 2);
-  armUpper.position.set(0.1, 1.7, 0.1);
-  entities.dummy.add(armUpper);
-
   entities.dummy.position.set(0, 0, -3);
   groups.ship.add(entities.dummy);
 
@@ -188,7 +183,7 @@ function setupDungeonMaze() {
   floor.rotation.x = -Math.PI / 2;
   groups.dungeon.add(floor);
 
-  // 1. Outer Perimeter Walls
+  // Outer Perimeter Walls
   const mapSize = 60;
   const wallHeight = 5;
   const wallThickness = 2;
@@ -209,7 +204,7 @@ function setupDungeonMaze() {
     colliders.push(box);
   });
 
-  // 2. Interior Maze Walls
+  // Interior Maze Walls
   for (let i = -24; i <= 24; i += 8) {
     for (let j = -24; j <= 24; j += 8) {
       if ((Math.abs(i) > 2 || Math.abs(j) > 2) && Math.random() > 0.35) {
@@ -223,7 +218,7 @@ function setupDungeonMaze() {
     }
   }
 
-  // 3. Living Wall Section
+  // Living Wall
   entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 1.2), wallMat);
   entities.livingWall.position.set(0, 2.25, -6);
   groups.dungeon.add(entities.livingWall);
@@ -239,7 +234,7 @@ function setupDungeonMaze() {
     groups.dungeon.add(brick);
   }
 
-  // 4. Massive Giant Tentacle
+  // Giant Frontal Tentacle
   entities.tentacle = new THREE.Group();
   const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.2 });
 
@@ -257,9 +252,7 @@ function setupDungeonMaze() {
   entities.tentacle.visible = false;
   groups.dungeon.add(entities.tentacle);
 
-  // 5. Exit Ladder
   setupExitLadder();
-
   groups.dungeon.visible = false;
   scene.add(groups.dungeon);
 }
@@ -318,19 +311,19 @@ function setupBossArena() {
 }
 
 // ==========================================
-// MULTIPLE ENEMY TYPES & PICKUPS SPAWNING
+// SPAWNING SYSTEM FOR ENEMIES & PICKUPS
 // ==========================================
 export function spawnEnemiesForLevel(count = 3) {
-  // Clear Existing Enemies & Projectiles
   entities.enemies.forEach(e => groups.dungeon.remove(e.mesh));
   entities.projectiles.forEach(p => groups.dungeon.remove(p.mesh));
   entities.pickups.forEach(p => groups.dungeon.remove(p.mesh));
+
   entities.enemies = [];
   entities.projectiles = [];
   entities.pickups = [];
 
   for (let i = 0; i < count; i++) {
-    const isRanged = i % 2 === 1; // Alternate enemy types
+    const isRanged = i % 2 === 1;
     const enemyMesh = isRanged ? createSpitterEnemy() : createLurkerEnemy();
 
     const spawnX = (Math.random() - 0.5) * 36;
@@ -439,7 +432,7 @@ function spawnMapPickups(amount = 3) {
 }
 
 // ==========================================
-// COLLISION SYSTEM
+// COLLISIONS & INPUT HANDLING
 // ==========================================
 function checkCollisions(newPosition) {
   const playerRadius = 0.4;
@@ -454,9 +447,6 @@ function checkCollisions(newPosition) {
   return false;
 }
 
-// ==========================================
-// INPUT HANDLING
-// ==========================================
 export function setupInput() {
   const canvas = document.getElementById('gl-canvas');
 
@@ -464,9 +454,14 @@ export function setupInput() {
     const k = e.key.toLowerCase();
     keys[k] = true;
 
-    if (k === 'f' && state.battery > 0) {
-      state.flashlightOn = !state.flashlightOn;
-      flashlight.intensity = state.flashlightOn ? 16 : 0;
+    if (k === 'f') {
+      if (state.battery > 0) {
+        state.flashlightOn = !state.flashlightOn;
+        flashlight.intensity = state.flashlightOn ? 16 : 0;
+      } else {
+        state.flashlightOn = false;
+        flashlight.intensity = 0;
+      }
       updateHUD();
     }
 
@@ -603,11 +598,10 @@ function onResize() {
 }
 
 // ==========================================
-// MAIN ENGINE ANIMATION LOOP
+// ENGINE LOOP
 // ==========================================
 function animate() {
   const delta = clock.getDelta();
-  const time = clock.getElapsedTime();
 
   // Flashlight Drain Mechanics
   if (state.flashlightOn) {
@@ -620,7 +614,7 @@ function animate() {
     updateHUD();
   }
 
-  // 1. Enemy AI & Behaviors
+  // 1. Enemy Behaviors & Dynamic AI
   if (state.phase === 'arena' && groups.dungeon.visible) {
     entities.enemies.forEach(enemy => {
       const dist = groups.player.position.distanceTo(enemy.mesh.position);
@@ -639,7 +633,6 @@ function animate() {
             triggerScreenShake(0.1, 0.05);
           }
         } else if (enemy.type === 'spitter') {
-          // Keep distance & shoot projectiles
           if (dist < 6.0) {
             const retreatDir = new THREE.Vector3().subVectors(enemy.mesh.position, groups.player.position).normalize();
             enemy.mesh.position.addScaledVector(retreatDir, enemy.speed * delta);
@@ -649,7 +642,6 @@ function animate() {
           if (enemy.attackCooldown <= 0) {
             enemy.attackCooldown = 2.5;
 
-            // Spawn Projectile
             const projMesh = new THREE.Mesh(
               new THREE.SphereGeometry(0.2, 8, 8),
               new THREE.MeshBasicMaterial({ color: 0xff0066 })
@@ -667,7 +659,7 @@ function animate() {
       }
     });
 
-    // Process Projectiles
+    // Handle Active Projectiles
     entities.projectiles.forEach((p, idx) => {
       p.mesh.position.addScaledVector(p.dir, 8.0 * delta);
       p.life -= delta;
@@ -684,7 +676,7 @@ function animate() {
       }
     });
 
-    // Process Pickup Collection
+    // Handle Item Pickup Mechanics
     entities.pickups.forEach((pickup, idx) => {
       pickup.mesh.rotation.y += delta * 2.0;
 
@@ -701,7 +693,7 @@ function animate() {
     });
   }
 
-  // 2. Living Wall Break & Tentacle Burst
+  // 2. Frontal Tentacle Living Wall Mechanics
   if (entities.livingWall && groups.dungeon.visible) {
     const distToLivingWall = groups.player.position.distanceTo(entities.livingWall.position);
 
@@ -747,7 +739,7 @@ function animate() {
     }
   }
 
-  // 3. Cutscene Interpolation
+  // 3. Cutscene Motion Updates
   if (state.phase === 'cutscene' && cutsceneState.sequence.length > 0) {
     const targetKeyframe = cutsceneState.sequence[cutsceneState.index];
     cutsceneState.progress += delta / targetKeyframe.duration;
@@ -782,7 +774,7 @@ function animate() {
     camera.position.y += (Math.random() - 0.5) * cutsceneState.shakeIntensity;
   }
 
-  // 5. FPS Player Movement with Wall Collisions
+  // 5. FPS Movement
   if (['tutorial', 'arena', 'boss'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
