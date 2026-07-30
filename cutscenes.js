@@ -40,17 +40,17 @@ export function initGame() {
   beginTutorial();
 }
 
-// ===== DIALOGUE SYSTEM =====
 function showDialogue(title, text) {
   setPhase('cutscene');
   if (dialogueTitle) dialogueTitle.textContent = title;
   if (dialogueText) dialogueText.textContent = text;
   if (dialogueOverlay) dialogueOverlay.classList.remove('hidden');
-  try { document.exitPointerLock(); } catch (e) { /* ignore pointer lock errors */ }
+  try { document.exitPointerLock(); } catch (e) {}
 }
 
 function hideDialogue() {
   if (dialogueOverlay) dialogueOverlay.classList.add('hidden');
+  window.focus();
 }
 
 function onDialogueContinue() {
@@ -62,8 +62,12 @@ function onDialogueContinue() {
     if (next.onShow) next.onShow();
   } else {
     hideDialogue();
-    // Restore playable phase so WASD movement works
     setPhase(targetPhaseAfterDialogue);
+
+    const canvas = document.getElementById('gl-canvas');
+    if (canvas && canvas.requestPointerLock) {
+      try { canvas.requestPointerLock(); } catch (e) {}
+    }
 
     if (pendingContinue) {
       const cb = pendingContinue;
@@ -83,7 +87,6 @@ function queueDialogues(list, onDone) {
   }
 }
 
-// ===== TUTORIAL =====
 function beginTutorial() {
   targetPhaseAfterDialogue = 'tutorial';
   setShipVisibility(true);
@@ -102,10 +105,6 @@ function beginTutorial() {
   
   pendingContinue = () => {
     setPhase('tutorial');
-    const canvas = document.getElementById('gl-canvas');
-    if (canvas && canvas.requestPointerLock) {
-      try { canvas.requestPointerLock(); } catch(e) {}
-    }
     updateHUD();
   };
   dialogueQueue = [];
@@ -134,7 +133,6 @@ function onTutorialComplete() {
   }, 2500);
 }
 
-// ===== ARENA =====
 function beginArena() {
   targetPhaseAfterDialogue = 'arena';
   setPhase('arena');
@@ -142,11 +140,6 @@ function beginArena() {
   state.level = 1;
   nextArenaLevel();
   updateHUD();
-
-  const canvas = document.getElementById('gl-canvas');
-  if (canvas && canvas.requestPointerLock) {
-    try { canvas.requestPointerLock(); } catch(e) {}
-  }
 }
 
 function nextArenaLevel() {
@@ -186,12 +179,11 @@ function onTentacleSeen() {
   if (hint) {
     hint.textContent = 'DID SOMETHING MOVE IN THE SHADOWS?';
     setTimeout(() => { 
-      if (hint) hint.textContent = 'CLICK or SPACE to STRIKE'; 
+      if (hint) hint.textContent = 'WASD to MOVE | CLICK or SPACE to STRIKE'; 
     }, 3500);
   }
 }
 
-// ===== BOSS =====
 function startBossPhase() {
   targetPhaseAfterDialogue = 'boss';
   setPhase('boss');
@@ -199,11 +191,6 @@ function startBossPhase() {
   setBossArenaVisibility(true);
   spawnKraken();
   updateHUD();
-
-  const canvas = document.getElementById('gl-canvas');
-  if (canvas && canvas.requestPointerLock) {
-    try { canvas.requestPointerLock(); } catch(e) {}
-  }
 }
 
 function onAllTentaclesDead() {
@@ -214,10 +201,6 @@ function onAllTentaclesDead() {
   );
   pendingContinue = () => {
     setPhase('boss');
-    const canvas = document.getElementById('gl-canvas');
-    if (canvas && canvas.requestPointerLock) {
-      try { canvas.requestPointerLock(); } catch(e) {}
-    }
   };
   dialogueQueue = [];
 }
@@ -235,7 +218,6 @@ function onBossDefeated() {
   dialogueQueue = [];
 }
 
-// ===== DEATH / RESET =====
 function onPlayerDead() {
   targetPhaseAfterDialogue = 'tutorial';
   showDialogue('KNOCKED OUT', 'You collapse in the dust. Arena medics drag you to the infirmary.');
