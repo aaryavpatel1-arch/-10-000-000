@@ -9,6 +9,7 @@ let dialogueOverlay, dialogueTitle, dialogueText, dialogueBtn;
 let hud, startScreen;
 let dialogueQueue = [];
 let pendingContinue = null;
+let targetPhaseAfterDialogue = 'tutorial';
 
 export function initGame() {
   dialogueOverlay = document.getElementById('dialogue-overlay');
@@ -61,6 +62,9 @@ function onDialogueContinue() {
     if (next.onShow) next.onShow();
   } else {
     hideDialogue();
+    // Restore playable phase so WASD movement works
+    setPhase(targetPhaseAfterDialogue);
+
     if (pendingContinue) {
       const cb = pendingContinue;
       pendingContinue = null;
@@ -81,7 +85,7 @@ function queueDialogues(list, onDone) {
 
 // ===== TUTORIAL =====
 function beginTutorial() {
-  setPhase('tutorial');
+  targetPhaseAfterDialogue = 'tutorial';
   setShipVisibility(true);
   setDungeonVisibility(false);
   setBossArenaVisibility(false);
@@ -93,10 +97,11 @@ function beginTutorial() {
 
   showDialogue(
     'TUTORIAL: SHIP DECK', 
-    'You are below deck of the merchant vessel Sable Crown. Land 5 strikes on the sparring dummy to complete your warm-up. Use CLICK or SPACE to strike.'
+    'You are below deck of the merchant vessel Sable Crown. Use WASD to move and CLICK or SPACE near the sparring dummy to strike it 5 times.'
   );
   
   pendingContinue = () => {
+    setPhase('tutorial');
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) {
       try { canvas.requestPointerLock(); } catch(e) {}
@@ -112,6 +117,7 @@ function onTutorialComplete() {
   triggerStorm(2500);
 
   setTimeout(() => {
+    targetPhaseAfterDialogue = 'arena';
     queueDialogues([
       {
         title: 'WASHED UP',
@@ -130,6 +136,7 @@ function onTutorialComplete() {
 
 // ===== ARENA =====
 function beginArena() {
+  targetPhaseAfterDialogue = 'arena';
   setPhase('arena');
   setDungeonVisibility(true);
   state.level = 1;
@@ -158,8 +165,7 @@ function nextArenaLevel() {
 
 function onEnemyDefeated() {
   if (state.level >= 99) {
-    setPhase('cutscene');
-    try { document.exitPointerLock(); } catch (e) {}
+    targetPhaseAfterDialogue = 'boss';
     showDialogue(
       'LEVEL 100: THE ABYSS GATEWAY', 
       'The arena floor drops away into a subterranean ocean pit. Something vast breaches the surface.'
@@ -187,6 +193,7 @@ function onTentacleSeen() {
 
 // ===== BOSS =====
 function startBossPhase() {
+  targetPhaseAfterDialogue = 'boss';
   setPhase('boss');
   setDungeonVisibility(false);
   setBossArenaVisibility(true);
@@ -200,11 +207,13 @@ function startBossPhase() {
 }
 
 function onAllTentaclesDead() {
+  targetPhaseAfterDialogue = 'boss';
   showDialogue(
     'THE CORE IS EXPOSED', 
     "All six tentacles collapse into twitching ruin. The Kraken's crimson eye boils with rage. Strike the core now before it recovers!"
   );
   pendingContinue = () => {
+    setPhase('boss');
     const canvas = document.getElementById('gl-canvas');
     if (canvas && canvas.requestPointerLock) {
       try { canvas.requestPointerLock(); } catch(e) {}
@@ -214,8 +223,7 @@ function onAllTentaclesDead() {
 }
 
 function onBossDefeated() {
-  setPhase('cutscene');
-  try { document.exitPointerLock(); } catch (e) {}
+  targetPhaseAfterDialogue = 'tutorial';
   showDialogue(
     'CONTRACT COMPLETE', 
     'The beast sinks into the black water. The syndicate broker steps from the shadows and hands you the glowing briefcase.'
@@ -229,8 +237,7 @@ function onBossDefeated() {
 
 // ===== DEATH / RESET =====
 function onPlayerDead() {
-  setPhase('cutscene');
-  try { document.exitPointerLock(); } catch (e) {}
+  targetPhaseAfterDialogue = 'tutorial';
   showDialogue('KNOCKED OUT', 'You collapse in the dust. Arena medics drag you to the infirmary.');
   pendingContinue = () => {
     resetGame();
