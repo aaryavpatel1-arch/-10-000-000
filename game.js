@@ -20,12 +20,11 @@ export const callbacks = {
 
 let scene, camera, renderer, player, flashlight, lanternLight;
 let shipGroup, dungeonGroup, bossGroup;
-let dummyMesh, enemyMesh, shadowTentacleMesh, krakenMesh;
-let tentaclesList = [];
+let dummyMesh, enemyMesh, shadowTentacleGroup, krakenMesh;
 let keys = {};
 let clock = new THREE.Clock();
 
-// Cutscene & Animation state
+// Cutscene & Camera State
 let activeSequence = [];
 let sequenceIndex = 0;
 let sequenceProgress = 0;
@@ -36,6 +35,10 @@ let currentLookTarget = new THREE.Vector3();
 let shakeDuration = 0;
 let shakeIntensity = 0;
 
+// Slither State
+let tentacleSlitherProgress = 0;
+let tentacleSlithering = false;
+
 export function initEngine() {
   const canvas = document.getElementById('gl-canvas');
   scene = new THREE.Scene();
@@ -44,7 +47,7 @@ export function initEngine() {
   scene.background = new THREE.Color(fogColor);
   scene.fog = new THREE.FogExp2(fogColor, 0.035);
 
-  // FIX: Proper First-Person FOV (70deg) & tight near-plane (0.05) to stop 3rd-person feel
+  // Grounded First-Person Perspective Camera
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 1000);
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -69,11 +72,10 @@ function createPlayerAndFlashlight() {
   player.position.set(0, 1.6, 5);
   scene.add(player);
 
-  // Position camera directly inside player group head position
   camera.position.set(0, 0, 0);
   player.add(camera);
 
-  // FIX: Flashlight locked to camera view, pointing straight forward
+  // Spotlight bound to camera view
   flashlight = new THREE.SpotLight(0xfff5e0, 0, 35, Math.PI / 5, 0.4, 1);
   flashlight.position.set(0, 0, 0);
   
@@ -94,7 +96,6 @@ function createShipDeck() {
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.8, roughness: 0.4 });
   const clothMat = new THREE.MeshStandardMaterial({ color: 0x8c7961, roughness: 0.95 });
 
-  // Deck Floor & Hull
   const floor = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 20), woodDark);
   floor.position.y = -0.2;
   shipGroup.add(floor);
@@ -111,61 +112,33 @@ function createShipDeck() {
     shipGroup.add(ribR);
   }
 
-  const wallL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 20), woodDark);
-  wallL.position.set(-6.8, 2, 0);
-  shipGroup.add(wallL);
-
-  const wallR = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 20), woodDark);
-  wallR.position.set(6.8, 2, 0);
-  shipGroup.add(wallR);
-
   lanternLight = new THREE.PointLight(0xffa542, 3.5, 18, 1.5);
   lanternLight.position.set(0, 3.6, -2);
   shipGroup.add(lanternLight);
 
-  // FIX: Detailed Martial Arts Training Dummy
+  // Detailed Training Dummy
   dummyMesh = new THREE.Group();
-
-  // Heavy Metal Base Plate
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.2, 16), ironMat);
   base.position.y = 0.1;
   dummyMesh.add(base);
 
-  // Wooden Main Post
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.24, 2.4, 12), woodLight);
   post.position.y = 1.2;
   dummyMesh.add(post);
 
-  // Woven Straw Torso Target
   const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.38, 1.2, 12), clothMat);
   torso.position.y = 1.5;
   dummyMesh.add(torso);
 
-  // Carved Head Piece
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), woodLight);
   head.position.y = 2.3;
   dummyMesh.add(head);
 
-  // Staggered Wooden Sparring Arms
   const armUpper = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), woodDark);
   armUpper.rotation.z = Math.PI / 2;
   armUpper.rotation.y = 0.3;
   armUpper.position.set(0.1, 1.7, 0.1);
   dummyMesh.add(armUpper);
-
-  const armLower = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.2, 8), woodDark);
-  armLower.rotation.z = Math.PI / 2;
-  armLower.rotation.y = -0.3;
-  armLower.position.set(-0.1, 1.4, -0.1);
-  dummyMesh.add(armLower);
-
-  // Rope Bindings around Torso
-  for (let r = 0; r < 3; r++) {
-    const rope = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.04, 8, 16), ropeMat);
-    rope.rotation.x = Math.PI / 2;
-    rope.position.y = 1.1 + r * 0.35;
-    dummyMesh.add(rope);
-  }
 
   dummyMesh.position.set(0, 0, -3);
   shipGroup.add(dummyMesh);
@@ -182,6 +155,7 @@ function createDungeonMaze() {
   floor.rotation.x = -Math.PI / 2;
   dungeonGroup.add(floor);
 
+  // Maze Walls
   for (let i = -24; i <= 24; i += 8) {
     for (let j = -24; j <= 24; j += 8) {
       if (Math.abs(i) > 2 || Math.abs(j) > 2) {
@@ -194,32 +168,94 @@ function createDungeonMaze() {
     }
   }
 
-  // Enemy Lurker
+  // Shadow Lurker Creature
   enemyMesh = new THREE.Group();
-  const darkMat = new THREE.MeshStandardMaterial({ color: 0x08080a, roughness: 0.3 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.1, 2.2, 8), darkMat);
-  body.position.y = 1.1;
-  enemyMesh.add(body);
+  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.1, metalness: 0.2 });
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0x12161a, roughness: 0.4 });
+  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+
+  const spineGroup = new THREE.Group();
+  spineGroup.name = 'lurker_spine';
+  for (let s = 0; s < 5; s++) {
+    const vertebra = new THREE.Mesh(new THREE.ConeGeometry(0.35 - s * 0.04, 0.5, 6), boneMat);
+    vertebra.position.set(0, 1.2 + s * 0.3, -s * 0.08);
+    vertebra.rotation.x = 0.25;
+    spineGroup.add(vertebra);
+  }
+  enemyMesh.add(spineGroup);
+
+  const headGroup = new THREE.Group();
+  headGroup.name = 'lurker_head';
+  headGroup.position.set(0, 2.7, -0.3);
+
+  const skull = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 7), shadowMat);
+  skull.rotation.x = -Math.PI / 2.2;
+  headGroup.add(skull);
+
+  const eyeOffsets = [
+    { x: -0.12, y: 0.05, z: -0.35 },
+    { x: 0.12, y: 0.05, z: -0.35 },
+    { x: -0.07, y: -0.08, z: -0.32 },
+    { x: 0.07, y: -0.08, z: -0.32 }
+  ];
+  eyeOffsets.forEach((pos, idx) => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeGlowMat);
+    eye.position.set(pos.x, pos.y, pos.z);
+    eye.name = `lurker_eye_${idx}`;
+    headGroup.add(eye);
+  });
+  enemyMesh.add(headGroup);
+
+  const armConfigs = [
+    { side: -1, yPos: 2.3, rotZ: 0.8, length: 1.4, name: 'arm_L1' },
+    { side: 1, yPos: 2.3, rotZ: -0.8, length: 1.4, name: 'arm_R1' },
+    { side: -1, yPos: 1.8, rotZ: 1.2, length: 1.6, name: 'arm_L2' },
+    { side: 1, yPos: 1.8, rotZ: -1.2, length: 1.6, name: 'arm_R2' }
+  ];
+
+  armConfigs.forEach(cfg => {
+    const armGroup = new THREE.Group();
+    armGroup.name = cfg.name;
+    armGroup.position.set(cfg.side * 0.25, cfg.yPos, -0.1);
+
+    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, cfg.length, 6), shadowMat);
+    upper.position.set(cfg.side * (cfg.length / 2), -cfg.length / 3, 0);
+    upper.rotation.z = cfg.rotZ;
+    armGroup.add(upper);
+
+    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.05, 1.2, 5), boneMat);
+    claw.position.set(cfg.side * cfg.length, -cfg.length * 0.9, 0.3);
+    claw.rotation.x = 0.6;
+    claw.rotation.z = cfg.rotZ * 0.5;
+    armGroup.add(claw);
+
+    enemyMesh.add(armGroup);
+  });
+
+  const coreLight = new THREE.PointLight(0xff0022, 1.5, 6);
+  coreLight.position.set(0, 1.8, -0.2);
+  enemyMesh.add(coreLight);
+
   enemyMesh.position.set(0, 0, -10);
   dungeonGroup.add(enemyMesh);
 
-  // FIX: Wall-Mounted Slithering Shadow Tentacle
-  shadowTentacleMesh = new THREE.Group();
-  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x0a1e24, roughness: 0.3 });
+  // Slithering Shadow Tentacle at wall base
+  shadowTentacleGroup = new THREE.Group();
+  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x08181c, roughness: 0.3 });
 
-  const segmentCount = 6;
-  for (let s = 0; s < segmentCount; s++) {
-    const segGeo = new THREE.CylinderGeometry(0.25 - s * 0.03, 0.3 - s * 0.03, 0.8, 10);
-    const seg = new THREE.Mesh(segGeo, tentacleMat);
-    seg.position.y = s * 0.7;
-    seg.name = `tentacle_seg_${s}`;
-    shadowTentacleMesh.add(seg);
+  for (let s = 0; s < 8; s++) {
+    const seg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.2 - s * 0.018, 0.24 - s * 0.018, 0.5, 10),
+      tentacleMat
+    );
+    seg.position.z = -s * 0.45;
+    seg.name = `t_seg_${s}`;
+    shadowTentacleGroup.add(seg);
   }
 
-  // Emerge horizontally from stone wall side
-  shadowTentacleMesh.rotation.x = Math.PI / 2;
-  shadowTentacleMesh.position.set(2.9, 1.8, -8);
-  dungeonGroup.add(shadowTentacleMesh);
+  shadowTentacleGroup.position.set(3.1, 0.2, -6);
+  shadowTentacleGroup.rotation.y = -Math.PI / 4;
+  dungeonGroup.add(shadowTentacleGroup);
 
   dungeonGroup.visible = false;
   scene.add(dungeonGroup);
@@ -270,10 +306,9 @@ export function setupInput() {
     const k = e.key.toLowerCase();
     keys[k] = true;
 
-    // FIX: Toggle Flashlight ON / OFF with 'F'
     if (k === 'f') {
       state.flashlightOn = !state.flashlightOn;
-      flashlight.intensity = state.flashlightOn ? 14 : 0;
+      flashlight.intensity = state.flashlightOn ? 16 : 0;
       const el = document.getElementById('fl-status');
       if (el) el.textContent = state.flashlightOn ? 'ON' : 'OFF';
     }
@@ -329,9 +364,11 @@ export function spawnEnemy(lvl) {
 }
 
 export function spawnShadowTentacle() {
-  if (shadowTentacleMesh && callbacks.onTentacleSeen) {
-    shadowTentacleMesh.position.set(2.9, 1.8, player.position.z - 8);
-    callbacks.onTentacleSeen();
+  if (shadowTentacleGroup && callbacks.onTentacleSeen) {
+    shadowTentacleGroup.position.set(3.1, 0.2, player.position.z - 6);
+    shadowTentacleGroup.visible = true;
+    tentacleSlithering = false;
+    tentacleSlitherProgress = 0;
   }
 }
 
@@ -381,6 +418,34 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
+  // Shadow Lurker Animation Loop
+  if (enemyMesh && dungeonGroup.visible) {
+    enemyMesh.position.y = Math.sin(time * 2.0) * 0.12 + 0.05;
+
+    const head = enemyMesh.getObjectByName('lurker_head');
+    if (head) {
+      if (Math.random() < 0.04) {
+        head.rotation.y = (Math.random() - 0.5) * 0.8;
+        head.rotation.z = (Math.random() - 0.5) * 0.5;
+      } else {
+        head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, 0, 0.1);
+        head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, 0, 0.1);
+      }
+    }
+
+    ['arm_L1', 'arm_R1', 'arm_L2', 'arm_R2'].forEach((armName, idx) => {
+      const arm = enemyMesh.getObjectByName(armName);
+      if (arm) {
+        arm.rotation.x = Math.sin(time * 3 + idx * 1.2) * 0.15;
+        if (Math.random() < 0.02) {
+          arm.rotation.z += (Math.random() - 0.5) * 0.3;
+        }
+      }
+    });
+
+    enemyMesh.lookAt(player.position.x, enemyMesh.position.y, player.position.z);
+  }
+
   // Cutscene Interpolation
   if (state.phase === 'cutscene' && activeSequence.length > 0) {
     const targetKeyframe = activeSequence[sequenceIndex];
@@ -409,16 +474,29 @@ function animate() {
     }
   }
 
-  // FIX: Animated Slithering Wall Tentacle (Withdraws back into the wall)
-  if (shadowTentacleMesh && dungeonGroup.visible) {
-    for (let s = 0; s < 6; s++) {
-      const child = shadowTentacleMesh.getObjectByName(`tentacle_seg_${s}`);
-      if (child) {
-        child.rotation.z = Math.sin(time * 4 + s * 0.5) * 0.15;
-        child.rotation.x = Math.cos(time * 3 + s * 0.5) * 0.12;
+  // Slithering Tentacle Trigger
+  if (shadowTentacleGroup && dungeonGroup.visible && shadowTentacleGroup.visible) {
+    const dist = player.position.distanceTo(shadowTentacleGroup.position);
+    if (dist < 8.0 && !tentacleSlithering) {
+      tentacleSlithering = true;
+      if (callbacks.onTentacleSeen) callbacks.onTentacleSeen();
+    }
+
+    if (tentacleSlithering) {
+      tentacleSlitherProgress += delta * 2.2;
+      
+      for (let s = 0; s < 8; s++) {
+        const seg = shadowTentacleGroup.getObjectByName(`t_seg_${s}`);
+        if (seg) {
+          seg.position.x = Math.sin(tentacleSlitherProgress * 3 + s * 0.4) * 0.3;
+          seg.position.z = -s * 0.45 - tentacleSlitherProgress * 1.8;
+        }
+      }
+
+      if (tentacleSlitherProgress > 3.0) {
+        shadowTentacleGroup.visible = false;
       }
     }
-    shadowTentacleMesh.position.x = 2.9 + Math.sin(time * 1.5) * 0.8;
   }
 
   // Screen Shake
@@ -428,7 +506,7 @@ function animate() {
     camera.position.y += (Math.random() - 0.5) * shakeIntensity;
   }
 
-  // First-Person Player Movement
+  // FPS Controls
   if (state.phase === 'tutorial' || state.phase === 'arena' || state.phase === 'boss') {
     const speed = 5.2 * delta;
     if (keys['w']) player.translateZ(-speed);
