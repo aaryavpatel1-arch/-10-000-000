@@ -1,265 +1,110 @@
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Courier+Prime:wght@400;700&display=swap');
-
 * {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #0a0c10;
-  color: #e0e0e0;
-  font-family: 'Courier Prime', monospace;
   user-select: none;
 }
 
-#game-container {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-}
-
-canvas#gl-canvas {
-  display: block;
+body, html {
   width: 100%;
   height: 100%;
-  outline: none;
+  overflow: hidden;
+  background-color: #000;
+  font-family: 'Courier New', Courier, monospace;
 }
 
-/* Start Screen */
-#start-screen {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  background: #0a0c10;
+#gl-canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
 }
 
-#start-screen h1 {
-  font-family: 'Bebas Neue', sans-serif;
-  color: #ffd700;
-  font-size: 5rem;
-  letter-spacing: 6px;
-  text-shadow: 0 0 12px rgba(255, 215, 0, 0.3);
-  margin: 0;
-}
-
-#start-screen h2 {
-  font-family: 'Courier Prime', monospace;
-  color: #ffffff;
-  font-size: 1.4rem;
-  margin: 0.5rem 0 2rem;
-  letter-spacing: 2px;
-}
-
-#start-screen p {
-  color: #888;
-  font-size: 0.95rem;
-  margin-bottom: 2.5rem;
-}
-
-#start-btn {
-  background: #ff2a2a;
-  color: #fff;
-  border: none;
-  padding: 1rem 3.5rem;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.4rem;
-  cursor: pointer;
-  letter-spacing: 3px;
-  text-transform: uppercase;
-  transition: background 0.2s, transform 0.1s;
-}
-
-#start-btn:hover {
-  background: #ff5555;
-  transform: translateY(-2px);
-}
-
-/* HUD */
 #hud {
   position: absolute;
-  inset: 0;
+  top: 20px;
+  left: 20px;
+  right: 20px;
   pointer-events: none;
+  color: #fff;
   z-index: 10;
 }
 
-#hud.hidden {
+.hidden {
   display: none !important;
 }
 
-#crosshair {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 26px;
+#zone-display {
+  font-size: 20px;
   font-weight: bold;
-  text-shadow: 0 0 4px rgba(0,0,0,0.8);
-  pointer-events: none;
+  letter-spacing: 2px;
+  text-shadow: 2px 2px 4px #000;
 }
 
 #top-hint {
-  position: absolute;
-  top: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  color: #ffd700;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.25rem;
-  letter-spacing: 2px;
-  text-shadow: 0 2px 4px #000;
-  pointer-events: none;
+  font-size: 14px;
+  color: #ffaa00;
+  margin-top: 5px;
+  text-shadow: 1px 1px 3px #000;
 }
 
-#zone-display {
-  position: absolute;
-  top: 22px;
-  left: 22px;
-  color: #ffffff;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.15rem;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 4px #000;
-  pointer-events: none;
+.bar-container, .battery-container {
+  display: flex;
+  align-items: center;
+  margin-top: 12px;
+  font-size: 14px;
+  text-shadow: 1px 1px 2px #000;
 }
 
-#prize-display {
-  position: absolute;
-  top: 22px;
-  right: 22px;
-  color: #ffd700;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.15rem;
-  letter-spacing: 1px;
-  text-shadow: 0 2px 4px #000;
-  pointer-events: none;
-}
-
-#flashlight-indicator {
-  position: absolute;
-  bottom: 64px;
-  left: 22px;
-  color: #aaaaaa;
-  font-size: 0.85rem;
-  pointer-events: none;
-}
-
-#fl-status {
+.bar-label {
+  width: 140px;
   font-weight: bold;
 }
 
-#health-container {
-  position: absolute;
-  bottom: 22px;
-  left: 22px;
-  right: 22px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  pointer-events: none;
-}
-
-#health-label {
-  color: #ff2a2a;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.3rem;
-  min-width: 32px;
-  text-shadow: 0 2px 4px #000;
-}
-
-#health-bar-wrap {
-  flex: 1;
-  height: 18px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+.bar-bg {
+  width: 200px;
+  height: 16px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid #fff;
 }
 
 #health-bar {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #ff2a2a 0%, #aa0000 100%);
-  transition: width 0.2s ease-out;
+  background-color: #ff2244;
+  transition: width 0.1s linear;
 }
 
-/* Damage flash overlay */
-#damage-flash {
+#fl-status {
+  font-weight: bold;
+  color: #ffcc00;
+}
+
+#start-screen {
   position: absolute;
-  inset: 0;
-  background: rgba(255, 0, 0, 0.4);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.1s ease-in-out;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
   z-index: 20;
 }
 
-/* Dialogue Overlay */
-#dialogue-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.88);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 50;
-}
-
-#dialogue-overlay.hidden {
-  display: none !important;
-}
-
-#dialogue-box {
-  max-width: 640px;
-  width: 90%;
-  background: #0a0c10;
-  border: 2px solid #ffd700;
-  padding: 2.5rem 2rem;
-  text-align: center;
-  box-shadow: 0 0 30px rgba(0, 0, 0, 0.95), inset 0 0 60px rgba(0,0,0,0.5);
-}
-
-#dialogue-title {
-  font-family: 'Bebas Neue', sans-serif;
-  color: #ff2a2a;
-  font-size: 2.2rem;
-  margin: 0 0 1.2rem;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-#dialogue-text {
-  color: #d0d0d0;
-  font-family: 'Courier Prime', monospace;
-  line-height: 1.7;
-  font-size: 1.05rem;
-  margin: 0 0 2rem;
-}
-
-#dialogue-btn {
-  background: #ff2a2a;
-  color: #fff;
+#start-btn {
+  margin-top: 20px;
+  padding: 12px 24px;
+  font-size: 18px;
+  font-family: inherit;
+  background: #ffaa00;
   border: none;
-  padding: 0.9rem 2.5rem;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.2rem;
   cursor: pointer;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  transition: background 0.2s, transform 0.1s;
+  font-weight: bold;
 }
 
-#dialogue-btn:hover {
-  background: #ff5555;
-  transform: translateY(-2px);
-}
-
-.hidden {
-  display: none !important;
+#start-btn:hover {
+  background: #ffcc00;
 }
