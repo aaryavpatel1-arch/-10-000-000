@@ -38,9 +38,9 @@ const groups = {
 // Entities & Mechanics
 const entities = {
   dummy: null,
-  enemies: [],        // Multiple active NPCs
-  projectiles: [],    // Crimson Spitter Projectiles
-  pickups: [],        // Health & Battery Pickups
+  enemies: [],
+  projectiles: [],
+  pickups: [],
   tentacle: null,
   kraken: null,
   ladder: null,
@@ -234,7 +234,7 @@ function setupDungeonMaze() {
     groups.dungeon.add(brick);
   }
 
-  // Giant Frontal Tentacle
+  // Giant Tentacle
   entities.tentacle = new THREE.Group();
   const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.2 });
 
