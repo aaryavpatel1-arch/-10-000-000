@@ -7,7 +7,6 @@ export const state = {
   phase: 'start',
   level: 1,
   hp: 100,
-  battery: 100, // Kept for UI compatibility, infinite
   dummyHits: 0,
   tutorialComplete: false,
   flashlightOn: false
@@ -23,7 +22,7 @@ export const callbacks = {
 
 // Engine & Scene References
 let scene, camera, renderer;
-let flashlight, lanternLight;
+let flashlight, lanternLight, ambientLight;
 let clock = new THREE.Clock();
 let keys = {};
 
@@ -80,9 +79,9 @@ export function initEngine() {
   const canvas = document.getElementById('gl-canvas');
   scene = new THREE.Scene();
 
-  const fogColor = 0x0a0c10;
+  const fogColor = 0x030406; // Pitch black fog
   scene.background = new THREE.Color(fogColor);
-  scene.fog = new THREE.FogExp2(fogColor, 0.035);
+  scene.fog = new THREE.FogExp2(fogColor, 0.055);
 
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 1000);
 
@@ -91,7 +90,7 @@ export function initEngine() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  const ambientLight = new THREE.AmbientLight(0xffebd2, 0.4);
+  ambientLight = new THREE.AmbientLight(0x1a202c, 0.15); // Ultra low ambient light for horror
   scene.add(ambientLight);
 
   setupPlayerAndFlashlight();
@@ -116,7 +115,8 @@ function setupPlayerAndFlashlight() {
   camera.rotation.set(0, 0, 0);
   groups.player.add(camera);
 
-  flashlight = new THREE.SpotLight(0xfff5e0, 0, 35, Math.PI / 5, 0.4, 1);
+  // Narrower, spooiker flashlight cone
+  flashlight = new THREE.SpotLight(0xfff5e0, 0, 28, Math.PI / 6, 0.5, 1);
   flashlight.position.set(0, 0, 0);
 
   const flashTarget = new THREE.Object3D();
@@ -130,10 +130,10 @@ function setupPlayerAndFlashlight() {
 function setupShipDeck() {
   groups.ship = new THREE.Group();
 
-  const woodDark = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.8 });
-  const woodLight = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.7 });
-  const ironMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.8, roughness: 0.4 });
-  const clothMat = new THREE.MeshStandardMaterial({ color: 0x8c7961, roughness: 0.95 });
+  const woodDark = new THREE.MeshStandardMaterial({ color: 0x24150c, roughness: 0.9 });
+  const woodLight = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.8 });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.8, roughness: 0.4 });
+  const clothMat = new THREE.MeshStandardMaterial({ color: 0x4a4033, roughness: 0.95 });
 
   const floor = new THREE.Mesh(new THREE.BoxGeometry(14, 0.4, 20), woodDark);
   floor.position.y = -0.2;
@@ -151,7 +151,7 @@ function setupShipDeck() {
     groups.ship.add(ribR);
   }
 
-  lanternLight = new THREE.PointLight(0xffa542, 3.5, 18, 1.5);
+  lanternLight = new THREE.PointLight(0xff7700, 2.0, 14, 2.0);
   lanternLight.position.set(0, 3.6, -2);
   groups.ship.add(lanternLight);
 
@@ -181,10 +181,10 @@ function setupShipDeck() {
 
 function setupDungeonMaze() {
   groups.dungeon = new THREE.Group();
-  colliders.length = 0; // Reset colliders list
+  colliders.length = 0;
   
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x181a20, roughness: 0.9 });
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0c0e12, roughness: 0.95 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0d0e12, roughness: 0.95 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x050608, roughness: 0.98 });
 
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), floorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -214,7 +214,7 @@ function setupDungeonMaze() {
   // Interior Maze Walls
   for (let i = -24; i <= 24; i += 8) {
     for (let j = -24; j <= 24; j += 8) {
-      if ((Math.abs(i) > 2 || Math.abs(j) > 2) && Math.random() > 0.35) {
+      if ((Math.abs(i) > 4 || Math.abs(j) > 4) && Math.random() > 0.35) {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 6), wallMat);
         wall.position.set(i, 2.25, j);
         groups.dungeon.add(wall);
@@ -243,7 +243,7 @@ function setupDungeonMaze() {
 
   // Giant Tentacle
   entities.tentacle = new THREE.Group();
-  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.2 });
+  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x020a0d, roughness: 0.1 });
 
   for (let s = 0; s < 14; s++) {
     const seg = new THREE.Mesh(
@@ -266,8 +266,8 @@ function setupDungeonMaze() {
 
 function setupExitLadder() {
   entities.ladder = new THREE.Group();
-  const metalMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8, roughness: 0.3 });
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffaa });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.3 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
 
   const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 5, 8), metalMat);
   railL.position.set(-0.4, 2.5, 0);
@@ -286,7 +286,7 @@ function setupExitLadder() {
   beacon.position.set(0, 5.2, 0);
   entities.ladder.add(beacon);
 
-  const ladderLight = new THREE.PointLight(0x00ffaa, 2, 8);
+  const ladderLight = new THREE.PointLight(0x00ff88, 1.5, 6);
   ladderLight.position.set(0, 4.5, 0);
   entities.ladder.add(ladderLight);
 
@@ -296,17 +296,17 @@ function setupExitLadder() {
 
 function setupBossArena() {
   groups.boss = new THREE.Group();
-  const waterMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.1 });
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x02070a, roughness: 0.1 });
   const water = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), waterMat);
   water.rotation.x = -Math.PI / 2;
   groups.boss.add(water);
 
   entities.kraken = new THREE.Group();
-  const head = new THREE.Mesh(new THREE.SphereGeometry(4.5, 16, 16), new THREE.MeshStandardMaterial({ color: 0x0e2b30 }));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(4.5, 16, 16), new THREE.MeshStandardMaterial({ color: 0x071518 }));
   head.position.y = 2;
   entities.kraken.add(head);
 
-  const coreEye = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff1100 }));
+  const coreEye = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff0000 }));
   coreEye.position.set(0, 3, -3.2);
   entities.kraken.add(coreEye);
 
@@ -329,12 +329,19 @@ export function spawnEnemiesForLevel(count = 3) {
   entities.projectiles = [];
   entities.pickups = [];
 
+  const playerPos = groups.player.position;
+
   for (let i = 0; i < count; i++) {
     const isRanged = i % 2 === 1;
     const enemyMesh = isRanged ? createSpitterEnemy() : createLurkerEnemy();
 
-    const spawnX = (Math.random() - 0.5) * 36;
-    const spawnZ = (Math.random() - 0.5) * 36;
+    let spawnX, spawnZ, distToPlayer;
+    do {
+      spawnX = (Math.random() - 0.5) * 40;
+      spawnZ = (Math.random() - 0.5) * 40;
+      distToPlayer = Math.hypot(spawnX - playerPos.x, spawnZ - playerPos.z);
+    } while (distToPlayer < 14.0); // Keep safe initial distance
+
     enemyMesh.position.set(spawnX, 0, spawnZ);
 
     groups.dungeon.add(enemyMesh);
@@ -343,8 +350,9 @@ export function spawnEnemiesForLevel(count = 3) {
       type: isRanged ? 'spitter' : 'lurker',
       hp: isRanged ? 40 : 60,
       aggro: false,
-      speed: isRanged ? 2.4 : 3.6,
-      attackCooldown: 0
+      speed: isRanged ? 1.8 : 2.8,
+      attackCooldown: 1.5,
+      stunTime: 0
     });
   }
 
@@ -352,9 +360,9 @@ export function spawnEnemiesForLevel(count = 3) {
 }
 
 function createLurkerEnemy() {
-  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.1 });
-  const boneMat = new THREE.MeshStandardMaterial({ color: 0x12161a, roughness: 0.4 });
-  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x010203, roughness: 0.1 });
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0x0c0d10, roughness: 0.4 });
+  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0000 }); // Intense Glowing Eyes
 
   const enemyGroup = new THREE.Group();
 
@@ -372,8 +380,8 @@ function createLurkerEnemy() {
   skull.rotation.x = -Math.PI / 2.2;
   headGroup.add(skull);
 
-  [-0.12, 0.12].forEach(xOff => {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeGlowMat);
+  [-0.14, 0.14].forEach(xOff => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeGlowMat);
     eye.position.set(xOff, 0.05, -0.35);
     headGroup.add(eye);
   });
@@ -383,8 +391,8 @@ function createLurkerEnemy() {
 }
 
 function createSpitterEnemy() {
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x220511, roughness: 0.3 });
-  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff0066 });
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x14020a, roughness: 0.3 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff0044 });
 
   const group = new THREE.Group();
 
@@ -401,39 +409,25 @@ function createSpitterEnemy() {
 
 function spawnMapPickups(amount = 3) {
   for (let p = 0; p < amount; p++) {
-    const isHealth = Math.random() > 0.5;
     const itemGroup = new THREE.Group();
 
-    if (isHealth) {
-      const bottle = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.15, 0.2, 0.5, 8),
-        new THREE.MeshBasicMaterial({ color: 0xff0044 })
-      );
-      bottle.position.y = 0.5;
-      itemGroup.add(bottle);
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.15, 0.2, 0.5, 8),
+      new THREE.MeshBasicMaterial({ color: 0x00ff88 })
+    );
+    bottle.position.y = 0.5;
+    itemGroup.add(bottle);
 
-      const light = new THREE.PointLight(0xff0044, 1.2, 4);
-      light.position.y = 0.5;
-      itemGroup.add(light);
-    } else {
-      const battery = new THREE.Mesh(
-        new THREE.BoxGeometry(0.2, 0.4, 0.2),
-        new THREE.MeshBasicMaterial({ color: 0xffcc00 })
-      );
-      battery.position.y = 0.5;
-      itemGroup.add(battery);
-
-      const light = new THREE.PointLight(0xffcc00, 1.2, 4);
-      light.position.y = 0.5;
-      itemGroup.add(light);
-    }
+    const light = new THREE.PointLight(0x00ff88, 1.2, 4);
+    light.position.y = 0.5;
+    itemGroup.add(light);
 
     itemGroup.position.set((Math.random() - 0.5) * 32, 0, (Math.random() - 0.5) * 32);
     groups.dungeon.add(itemGroup);
 
     entities.pickups.push({
       mesh: itemGroup,
-      type: isHealth ? 'health' : 'battery'
+      type: 'health'
     });
   }
 }
@@ -460,16 +454,16 @@ export function setupInput() {
   const canvas = document.getElementById('gl-canvas');
 
   window.addEventListener('keydown', e => {
-    const k = e.key.toLowerCase();
-    keys[k] = true;
+    keys[e.key.toLowerCase()] = true;
+    keys[e.code] = true;
 
-    if (k === 'f') {
+    if (e.key.toLowerCase() === 'f') {
       state.flashlightOn = !state.flashlightOn;
       flashlight.intensity = state.flashlightOn ? 16 : 0;
       updateHUD();
     }
 
-    if (k === 'e' && state.phase === 'arena' && entities.ladder) {
+    if (e.key.toLowerCase() === 'e' && state.phase === 'arena' && entities.ladder) {
       const distToLadder = groups.player.position.distanceTo(entities.ladder.position);
       if (distToLadder < 2.8) {
         if (callbacks.onEnemyDefeated) callbacks.onEnemyDefeated();
@@ -477,7 +471,10 @@ export function setupInput() {
     }
   });
 
-  window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+    keys[e.code] = false;
+  });
 
   window.addEventListener('mousemove', e => {
     if (document.pointerLockElement === canvas && state.phase !== 'cutscene') {
@@ -513,7 +510,7 @@ function handleAttack() {
   } else if (state.phase === 'arena') {
     entities.enemies.forEach((enemy, index) => {
       if (groups.player.position.distanceTo(enemy.mesh.position) < 3.5) {
-        enemy.hp -= 25;
+        enemy.hp -= 35;
         enemy.mesh.position.z -= 1.5;
 
         if (enemy.hp <= 0) {
@@ -562,16 +559,16 @@ export function spawnKraken() {
 export function triggerStorm(duration) {
   let count = 0;
   const interval = setInterval(() => {
-    const stormHex = count % 2 === 0 ? 0x334466 : 0x0a0c10;
+    const stormHex = count % 2 === 0 ? 0x223344 : 0x030406;
     scene.fog.color.setHex(stormHex);
     scene.background.setHex(stormHex);
     renderer.setClearColor(stormHex, 1);
     count++;
     if (count > 16) {
       clearInterval(interval);
-      scene.fog.color.setHex(0x0a0c10);
-      scene.background.setHex(0x0a0c10);
-      renderer.setClearColor(0x0a0c10, 1);
+      scene.fog.color.setHex(0x030406);
+      scene.background.setHex(0x030406);
+      renderer.setClearColor(0x030406, 1);
     }
   }, duration / 16);
 }
@@ -587,12 +584,11 @@ export function updateHUD() {
       : `10,000,000 - LEVEL ${state.level} / 100`;
   }
   if (hb) hb.style.width = `${Math.max(0, state.hp)}%`;
-  if (flStatus) flStatus.textContent = `${state.flashlightOn ? 'ON' : 'OFF'} (∞)`;
+  if (flStatus) flStatus.textContent = `${state.flashlightOn ? 'ON' : 'OFF'}`;
 }
 
 export function resetGame() {
   state.hp = 100;
-  state.battery = 100;
   state.level = 1;
   state.dummyHits = 0;
   pitch = 0;
@@ -614,24 +610,36 @@ function onResize() {
 // ==========================================
 function animate() {
   const delta = clock.getDelta();
+  let nearestEnemyDist = 999;
 
-  // 1. Enemy Behaviors & Dynamic AI
-  if (state.phase === 'arena' && groups.dungeon.visible) {
+  // 1. HORROR AI & ENEMY BEHAVIOR
+  if (state.phase === 'arena' && groups.dungeon.visible && state.hp > 0) {
     entities.enemies.forEach(enemy => {
       const dist = groups.player.position.distanceTo(enemy.mesh.position);
+      if (dist < nearestEnemyDist) nearestEnemyDist = dist;
+
       if (dist < 12.0) enemy.aggro = true;
 
       if (enemy.aggro) {
         enemy.mesh.lookAt(groups.player.position.x, enemy.mesh.position.y, groups.player.position.z);
 
         if (enemy.type === 'lurker') {
-          if (dist > 1.2) {
-            const dir = new THREE.Vector3().subVectors(groups.player.position, enemy.mesh.position).normalize();
-            enemy.mesh.position.addScaledVector(dir, enemy.speed * delta);
+          // Stun briefly if illuminated directly
+          if (state.flashlightOn && dist < 8.0) {
+            enemy.stunTime -= delta;
           } else {
-            state.hp -= 15 * delta;
-            updateHUD();
-            triggerScreenShake(0.1, 0.05);
+            enemy.stunTime = 0;
+          }
+
+          if (enemy.stunTime <= 0) {
+            if (dist > 1.2) {
+              const dir = new THREE.Vector3().subVectors(groups.player.position, enemy.mesh.position).normalize();
+              enemy.mesh.position.addScaledVector(dir, enemy.speed * delta);
+            } else {
+              state.hp -= 15 * delta;
+              updateHUD();
+              triggerScreenShake(0.15, 0.08); // Jumpscare rumble
+            }
           }
         } else if (enemy.type === 'spitter') {
           if (dist < 6.0) {
@@ -645,7 +653,7 @@ function animate() {
 
             const projMesh = new THREE.Mesh(
               new THREE.SphereGeometry(0.2, 8, 8),
-              new THREE.MeshBasicMaterial({ color: 0xff0066 })
+              new THREE.MeshBasicMaterial({ color: 0xff0044 })
             );
             projMesh.position.copy(enemy.mesh.position).add(new THREE.Vector3(0, 1.8, 0));
 
@@ -656,35 +664,54 @@ function animate() {
           }
         }
 
-        if (state.hp <= 0 && callbacks.onPlayerDead) callbacks.onPlayerDead();
+        if (state.hp <= 0 && callbacks.onPlayerDead) {
+          state.hp = 0;
+          callbacks.onPlayerDead();
+        }
       }
     });
 
-    // Handle Active Projectiles
+    // Dynamic Horror Flashlight Flickering
+    if (state.flashlightOn) {
+      if (nearestEnemyDist < 6.0) {
+        // High panic flickering when enemies are close
+        flashlight.intensity = Math.random() > 0.25 ? 16 : 1.5;
+      } else if (Math.random() < 0.02) {
+        // Random eerie flicker
+        flashlight.intensity = 2;
+        setTimeout(() => { flashlight.intensity = 16; }, 80);
+      } else {
+        flashlight.intensity = 16;
+      }
+    }
+
+    // Active Projectiles
     entities.projectiles.forEach((p, idx) => {
       p.mesh.position.addScaledVector(p.dir, 8.0 * delta);
       p.life -= delta;
 
       if (groups.player.position.distanceTo(p.mesh.position) < 1.0) {
-        state.hp -= 10;
+        state.hp -= 12;
         updateHUD();
-        triggerScreenShake(0.2, 0.1);
+        triggerScreenShake(0.25, 0.12);
         groups.dungeon.remove(p.mesh);
         entities.projectiles.splice(idx, 1);
+        if (state.hp <= 0 && callbacks.onPlayerDead) {
+          state.hp = 0;
+          callbacks.onPlayerDead();
+        }
       } else if (p.life <= 0) {
         groups.dungeon.remove(p.mesh);
         entities.projectiles.splice(idx, 1);
       }
     });
 
-    // Handle Item Pickup Mechanics
+    // Item Pickups
     entities.pickups.forEach((pickup, idx) => {
       pickup.mesh.rotation.y += delta * 2.0;
 
       if (groups.player.position.distanceTo(pickup.mesh.position) < 1.2) {
-        if (pickup.type === 'health') {
-          state.hp = Math.min(100, state.hp + 25);
-        }
+        state.hp = Math.min(100, state.hp + 25);
         updateHUD();
         groups.dungeon.remove(pickup.mesh);
         entities.pickups.splice(idx, 1);
@@ -699,7 +726,7 @@ function animate() {
     if (distToLivingWall < 6.5 && !livingWallState.triggered) {
       livingWallState.triggered = true;
       entities.tentacle.visible = true;
-      triggerScreenShake(1.5, 0.3);
+      triggerScreenShake(1.8, 0.35);
       if (callbacks.onTentacleSeen) callbacks.onTentacleSeen();
     }
 
@@ -773,33 +800,28 @@ function animate() {
     camera.position.y += (Math.random() - 0.5) * cutsceneState.shakeIntensity;
   }
 
-  // 5. FPS Movement
+  // 5. FPS Movement (WASD)
   if (['start', 'tutorial', 'arena', 'boss'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
 
-    if (keys['w']) moveDir.z -= 1;
-    if (keys['s']) moveDir.z += 1;
-    if (keys['a']) moveDir.x -= 1;
-    if (keys['d']) moveDir.x += 1;
+    if (keys['w'] || keys['KeyW']) moveDir.z -= 1;
+    if (keys['s'] || keys['KeyS']) moveDir.z += 1;
+    if (keys['a'] || keys['KeyA']) moveDir.x -= 1;
+    if (keys['d'] || keys['KeyD']) moveDir.x += 1;
 
     if (moveDir.lengthSq() > 0) {
       moveDir.normalize();
 
-      const targetPosX = groups.player.position.clone().addScaledVector(
-        new THREE.Vector3(moveDir.x, 0, 0).applyQuaternion(groups.player.quaternion),
-        moveSpeed
-      );
+      const forwardVec = new THREE.Vector3(0, 0, moveDir.z).applyQuaternion(groups.player.quaternion);
+      const sideVec = new THREE.Vector3(moveDir.x, 0, 0).applyQuaternion(groups.player.quaternion);
 
+      const targetPosX = groups.player.position.clone().addScaledVector(sideVec, moveSpeed);
       if (!checkCollisions(targetPosX)) {
         groups.player.position.x = targetPosX.x;
       }
 
-      const targetPosZ = groups.player.position.clone().addScaledVector(
-        new THREE.Vector3(0, 0, moveDir.z).applyQuaternion(groups.player.quaternion),
-        moveSpeed
-      );
-
+      const targetPosZ = groups.player.position.clone().addScaledVector(forwardVec, moveSpeed);
       if (!checkCollisions(targetPosZ)) {
         groups.player.position.z = targetPosZ.z;
       }
