@@ -1,7 +1,7 @@
 import {
   initEngine, setupInput, state, callbacks,
   setPhase, setShipVisibility, setDungeonVisibility, setBossArenaVisibility,
-  spawnEnemy, spawnShadowTentacle, spawnKraken, triggerStorm, startCinematicSequence,
+  spawnEnemy, spawnKraken, triggerStorm, startCinematicSequence,
   updateHUD, resetGame, triggerScreenShake
 } from './game.js';
 
@@ -79,7 +79,7 @@ function playDungeonArrivalCutscene() {
   state.level = 1;
   updateHUD();
 
-  showBanner("ZONE 1: THE FOGGY MAZE", "SURVIVE THE LURKERS TO ESCAPE");
+  showBanner("ZONE 1: THE LIVING MAZE", "FIND THE GLOWING LADDER & PRESS 'E' TO ESCAPE");
 
   startCinematicSequence([
     {
@@ -104,7 +104,6 @@ function nextArenaLevel() {
     return;
   }
   spawnEnemy(state.level);
-  if (state.level <= 99) spawnShadowTentacle();
   updateHUD();
 }
 
@@ -178,10 +177,10 @@ function playGameOverCutscene() {
 function onTentacleSeen() {
   const hint = document.getElementById('top-hint');
   if (hint) {
-    hint.textContent = 'SOMETHING SLITHERED AROUND THE CORNER!';
+    hint.textContent = 'THE LIVING WALL BURST OPEN RIGHT IN FRONT OF YOU!';
     setTimeout(() => {
-      if (hint) hint.textContent = 'WASD to MOVE | PRESS F FOR FLASHLIGHT';
-    }, 3500);
+      if (hint) hint.textContent = 'FIND THE LADDER & PRESS E TO ASCEND';
+    }, 4000);
   }
 }
 
