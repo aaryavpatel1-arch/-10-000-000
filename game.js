@@ -17,7 +17,6 @@ export const callbacks = {
   onEnemyDefeated: null,
   onPlayerDead: null,
   onTentacleSeen: null,
-  onAllTentaclesDead: null,
   onBossDefeated: null
 };
 
@@ -27,7 +26,7 @@ let flashlight, lanternLight;
 let clock = new THREE.Clock();
 let keys = {};
 
-// Game Groups & Meshes
+// Game Groups
 const groups = {
   ship: null,
   dungeon: null,
@@ -35,12 +34,18 @@ const groups = {
   player: null
 };
 
+// Entities & Mechanics
 const entities = {
   dummy: null,
-  enemy: null,
+  enemies: [],       // Multiple aggressive NPCs
   tentacle: null,
-  kraken: null
+  kraken: null,
+  ladder: null,
+  livingWall: null,
+  livingWallDebris: []
 };
+
+const colliders = []; // Wall Bounding Boxes for collisions
 
 // Cutscene & Motion State
 const cutsceneState = {
@@ -55,9 +60,12 @@ const cutsceneState = {
   shakeIntensity: 0
 };
 
-// Tentacle Slither State
-let tentacleSlitherProgress = 0;
-let tentacleSlithering = false;
+// Living Wall Dynamic Burst State
+let livingWallState = {
+  triggered: false,
+  progress: 0,
+  rebuilding: false
+};
 
 // ==========================================
 // INITIALIZATION & ENGINE SETUP
@@ -70,7 +78,6 @@ export function initEngine() {
   scene.background = new THREE.Color(fogColor);
   scene.fog = new THREE.FogExp2(fogColor, 0.035);
 
-  // Grounded First-Person Perspective Camera
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 1000);
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
@@ -101,7 +108,6 @@ function setupPlayerAndFlashlight() {
   camera.position.set(0, 0, 0);
   groups.player.add(camera);
 
-  // Dynamic Spotlight bound directly to camera gaze
   flashlight = new THREE.SpotLight(0xfff5e0, 0, 35, Math.PI / 5, 0.4, 1);
   flashlight.position.set(0, 0, 0);
 
@@ -141,9 +147,8 @@ function setupShipDeck() {
   lanternLight.position.set(0, 3.6, -2);
   groups.ship.add(lanternLight);
 
-  // Training Dummy Construction
+  // Training Dummy
   entities.dummy = new THREE.Group();
-  
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.2, 16), ironMat);
   base.position.y = 0.1;
   entities.dummy.add(base);
@@ -180,111 +185,115 @@ function setupDungeonMaze() {
   floor.rotation.x = -Math.PI / 2;
   groups.dungeon.add(floor);
 
-  // Maze Walls Generation
+  // 1. Outer Perimeter Walls
+  const mapSize = 60;
+  const wallHeight = 5;
+  const wallThickness = 2;
+
+  const perimeterWalls = [
+    { pos: [0, wallHeight / 2, -mapSize / 2], size: [mapSize, wallHeight, wallThickness] },
+    { pos: [0, wallHeight / 2, mapSize / 2], size: [mapSize, wallHeight, wallThickness] },
+    { pos: [-mapSize / 2, wallHeight / 2, 0], size: [wallThickness, wallHeight, mapSize] },
+    { pos: [mapSize / 2, wallHeight / 2, 0], size: [wallThickness, wallHeight, mapSize] }
+  ];
+
+  perimeterWalls.forEach(p => {
+    const pWall = new THREE.Mesh(new THREE.BoxGeometry(...p.size), wallMat);
+    pWall.position.set(...p.pos);
+    groups.dungeon.add(pWall);
+
+    const box = new THREE.Box3().setFromObject(pWall);
+    colliders.push(box);
+  });
+
+  // 2. Interior Maze Walls
   for (let i = -24; i <= 24; i += 8) {
     for (let j = -24; j <= 24; j += 8) {
       if ((Math.abs(i) > 2 || Math.abs(j) > 2) && Math.random() > 0.35) {
         const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 6), wallMat);
         wall.position.set(i, 2.25, j);
         groups.dungeon.add(wall);
+
+        const box = new THREE.Box3().setFromObject(wall);
+        colliders.push(box);
       }
     }
   }
 
-  // Shadow Lurker Creature Construction
-  entities.enemy = new THREE.Group();
-  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.1, metalness: 0.2 });
-  const boneMat = new THREE.MeshStandardMaterial({ color: 0x12161a, roughness: 0.4 });
-  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+  // 3. Living Wall Section (Positioned Directly In Front of Pathway)
+  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 1.2), wallMat);
+  entities.livingWall.position.set(0, 2.25, -6);
+  groups.dungeon.add(entities.livingWall);
 
-  // Spine
-  const spineGroup = new THREE.Group();
-  spineGroup.name = 'lurker_spine';
-  for (let s = 0; s < 5; s++) {
-    const vertebra = new THREE.Mesh(new THREE.ConeGeometry(0.35 - s * 0.04, 0.5, 6), boneMat);
-    vertebra.position.set(0, 1.2 + s * 0.3, -s * 0.08);
-    vertebra.rotation.x = 0.25;
-    spineGroup.add(vertebra);
+  const livingBox = new THREE.Box3().setFromObject(entities.livingWall);
+  colliders.push(livingBox);
+
+  // Debris Bricks for Living Wall Regeneration
+  for (let b = 0; b < 12; b++) {
+    const brick = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), wallMat);
+    brick.position.set(
+      (Math.random() - 0.5) * 5,
+      0.2,
+      -6 + (Math.random() - 0.5) * 2
+    );
+    brick.visible = false;
+    entities.livingWallDebris.push(brick);
+    groups.dungeon.add(brick);
   }
-  entities.enemy.add(spineGroup);
 
-  // Head & Eyes
-  const headGroup = new THREE.Group();
-  headGroup.name = 'lurker_head';
-  headGroup.position.set(0, 2.7, -0.3);
-
-  const skull = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 7), shadowMat);
-  skull.rotation.x = -Math.PI / 2.2;
-  headGroup.add(skull);
-
-  const eyeOffsets = [
-    { x: -0.12, y: 0.05, z: -0.35 },
-    { x: 0.12, y: 0.05, z: -0.35 },
-    { x: -0.07, y: -0.08, z: -0.32 },
-    { x: 0.07, y: -0.08, z: -0.32 }
-  ];
-  eyeOffsets.forEach((pos, idx) => {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeGlowMat);
-    eye.position.set(pos.x, pos.y, pos.z);
-    eye.name = `lurker_eye_${idx}`;
-    headGroup.add(eye);
-  });
-  entities.enemy.add(headGroup);
-
-  // Claws / Limbs
-  const armConfigs = [
-    { side: -1, yPos: 2.3, rotZ: 0.8, length: 1.4, name: 'arm_L1' },
-    { side: 1, yPos: 2.3, rotZ: -0.8, length: 1.4, name: 'arm_R1' },
-    { side: -1, yPos: 1.8, rotZ: 1.2, length: 1.6, name: 'arm_L2' },
-    { side: 1, yPos: 1.8, rotZ: -1.2, length: 1.6, name: 'arm_R2' }
-  ];
-
-  armConfigs.forEach(cfg => {
-    const armGroup = new THREE.Group();
-    armGroup.name = cfg.name;
-    armGroup.position.set(cfg.side * 0.25, cfg.yPos, -0.1);
-
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, cfg.length, 6), shadowMat);
-    upper.position.set(cfg.side * (cfg.length / 2), -cfg.length / 3, 0);
-    upper.rotation.z = cfg.rotZ;
-    armGroup.add(upper);
-
-    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.05, 1.2, 5), boneMat);
-    claw.position.set(cfg.side * cfg.length, -cfg.length * 0.9, 0.3);
-    claw.rotation.x = 0.6;
-    claw.rotation.z = cfg.rotZ * 0.5;
-    armGroup.add(claw);
-
-    entities.enemy.add(armGroup);
-  });
-
-  const coreLight = new THREE.PointLight(0xff0022, 1.5, 6);
-  coreLight.position.set(0, 1.8, -0.2);
-  entities.enemy.add(coreLight);
-
-  entities.enemy.position.set(0, 0, -10);
-  groups.dungeon.add(entities.enemy);
-
-  // Slithering Shadow Tentacle
+  // 4. Massive Giant Tentacle (Shoots Out directly in Front of Player)
   entities.tentacle = new THREE.Group();
-  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x08181c, roughness: 0.3 });
+  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.2 });
 
-  for (let s = 0; s < 8; s++) {
+  for (let s = 0; s < 14; s++) {
     const seg = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.2 - s * 0.018, 0.24 - s * 0.018, 0.5, 10),
+      new THREE.CylinderGeometry(0.6 - s * 0.035, 0.7 - s * 0.035, 1.0, 12),
       tentacleMat
     );
-    seg.position.z = -s * 0.45;
-    seg.name = `t_seg_${s}`;
+    seg.position.z = s * 0.9; // Extends forward out of wall
+    seg.name = `gt_seg_${s}`;
     entities.tentacle.add(seg);
   }
 
-  entities.tentacle.position.set(3.1, 0.2, -6);
-  entities.tentacle.rotation.y = -Math.PI / 4;
+  entities.tentacle.position.set(0, 1.6, -6.5);
+  entities.tentacle.visible = false;
   groups.dungeon.add(entities.tentacle);
+
+  // 5. Exit Ladder
+  setupExitLadder();
 
   groups.dungeon.visible = false;
   scene.add(groups.dungeon);
+}
+
+function setupExitLadder() {
+  entities.ladder = new THREE.Group();
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x555555, metalness: 0.8, roughness: 0.3 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffaa });
+
+  const railL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 5, 8), metalMat);
+  railL.position.set(-0.4, 2.5, 0);
+  const railR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 5, 8), metalMat);
+  railR.position.set(0.4, 2.5, 0);
+  entities.ladder.add(railL, railR);
+
+  for (let r = 0; r < 8; r++) {
+    const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.8, 8), metalMat);
+    rung.rotation.z = Math.PI / 2;
+    rung.position.set(0, 0.6 + r * 0.55, 0);
+    entities.ladder.add(rung);
+  }
+
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), glowMat);
+  beacon.position.set(0, 5.2, 0);
+  entities.ladder.add(beacon);
+
+  const ladderLight = new THREE.PointLight(0x00ffaa, 2, 8);
+  ladderLight.position.set(0, 4.5, 0);
+  entities.ladder.add(ladderLight);
+
+  entities.ladder.position.set(18, 0, -18);
+  groups.dungeon.add(entities.ladder);
 }
 
 function setupBossArena() {
@@ -311,11 +320,86 @@ function setupBossArena() {
 }
 
 // ==========================================
-// CONTROL & EVENT LISTENERS
+// CREATURE / NPC SPAWNING & AI
+// ==========================================
+export function spawnEnemiesForLevel(count = 3) {
+  entities.enemies.forEach(e => groups.dungeon.remove(e.mesh));
+  entities.enemies = [];
+
+  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.1, metalness: 0.2 });
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0x12161a, roughness: 0.4 });
+  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+
+  for (let i = 0; i < count; i++) {
+    const enemyGroup = new THREE.Group();
+
+    for (let s = 0; s < 5; s++) {
+      const v = new THREE.Mesh(new THREE.ConeGeometry(0.35 - s * 0.04, 0.5, 6), boneMat);
+      v.position.set(0, 1.2 + s * 0.3, -s * 0.08);
+      v.rotation.x = 0.25;
+      enemyGroup.add(v);
+    }
+
+    const headGroup = new THREE.Group();
+    headGroup.name = 'lurker_head';
+    headGroup.position.set(0, 2.7, -0.3);
+
+    const skull = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 7), shadowMat);
+    skull.rotation.x = -Math.PI / 2.2;
+    headGroup.add(skull);
+
+    [-0.12, 0.12].forEach(xOff => {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeGlowMat);
+      eye.position.set(xOff, 0.05, -0.35);
+      headGroup.add(eye);
+    });
+    enemyGroup.add(headGroup);
+
+    [-1, 1].forEach(side => {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 1.4, 6), shadowMat);
+      arm.position.set(side * 0.6, 1.8, 0.2);
+      arm.rotation.z = side * -0.8;
+      enemyGroup.add(arm);
+    });
+
+    const spawnX = (Math.random() - 0.5) * 36;
+    const spawnZ = (Math.random() - 0.5) * 36;
+    enemyGroup.position.set(spawnX, 0, spawnZ);
+
+    groups.dungeon.add(enemyGroup);
+    entities.enemies.push({
+      mesh: enemyGroup,
+      hp: 50,
+      aggro: false,
+      speed: 3.2
+    });
+  }
+}
+
+// ==========================================
+// COLLISION SYSTEM
+// ==========================================
+function checkCollisions(newPosition) {
+  const playerRadius = 0.4;
+  const playerBox = new THREE.Box3(
+    new THREE.Vector3(newPosition.x - playerRadius, 0, newPosition.z - playerRadius),
+    new THREE.Vector3(newPosition.x + playerRadius, 3.0, newPosition.z + playerRadius)
+  );
+
+  for (let box of colliders) {
+    if (playerBox.intersectsBox(box)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ==========================================
+// INPUT HANDLING
 // ==========================================
 export function setupInput() {
   const canvas = document.getElementById('gl-canvas');
-  
+
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     keys[k] = true;
@@ -325,6 +409,13 @@ export function setupInput() {
       flashlight.intensity = state.flashlightOn ? 16 : 0;
       const statusEl = document.getElementById('fl-status');
       if (statusEl) statusEl.textContent = state.flashlightOn ? 'ON' : 'OFF';
+    }
+
+    if (k === 'e' && state.phase === 'arena' && entities.ladder) {
+      const distToLadder = groups.player.position.distanceTo(entities.ladder.position);
+      if (distToLadder < 2.8) {
+        if (callbacks.onEnemyDefeated) callbacks.onEnemyDefeated();
+      }
     }
   });
 
@@ -359,20 +450,25 @@ function handleAttack() {
         callbacks.onDummyComplete();
       }
     }
-  } else if (state.phase === 'arena' && entities.enemy) {
-    if (groups.player.position.distanceTo(entities.enemy.position) < 3.5) {
-      entities.enemy.position.z -= 4;
-      if (entities.enemy.position.z < -28 && callbacks.onEnemyDefeated) {
-        callbacks.onEnemyDefeated();
+  } else if (state.phase === 'arena') {
+    entities.enemies.forEach((enemy, index) => {
+      if (groups.player.position.distanceTo(enemy.mesh.position) < 3.5) {
+        enemy.hp -= 25;
+        enemy.mesh.position.z -= 1.5;
+
+        if (enemy.hp <= 0) {
+          groups.dungeon.remove(enemy.mesh);
+          entities.enemies.splice(index, 1);
+        }
       }
-    }
+    });
   } else if (state.phase === 'boss' && entities.kraken) {
     if (callbacks.onBossDefeated) callbacks.onBossDefeated();
   }
 }
 
 // ==========================================
-// CINEMATICS & GAME LIFECYCLE
+// GAME LIFECYCLE & CINEMATICS
 // ==========================================
 export function startCinematicSequence(keyframes, onComplete) {
   state.phase = 'cutscene';
@@ -396,20 +492,11 @@ export function setDungeonVisibility(v) { groups.dungeon.visible = v; }
 export function setBossArenaVisibility(v) { groups.boss.visible = v; }
 
 export function spawnEnemy(lvl) {
-  if (entities.enemy) entities.enemy.position.set((Math.random() - 0.5) * 10, 0, -10);
+  spawnEnemiesForLevel(Math.min(2 + Math.floor(lvl / 3), 8));
 }
 
-export function spawnShadowTentacle() {
-  if (entities.tentacle && callbacks.onTentacleSeen) {
-    entities.tentacle.position.set(3.1, 0.2, groups.player.position.z - 6);
-    entities.tentacle.visible = true;
-    tentacleSlithering = false;
-    tentacleSlitherProgress = 0;
-  }
-}
-
-export function spawnKraken() { 
-  if (entities.kraken) entities.kraken.position.set(0, 0, -20); 
+export function spawnKraken() {
+  if (entities.kraken) entities.kraken.position.set(0, 0, -20);
 }
 
 export function triggerStorm(duration) {
@@ -459,35 +546,85 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
-  // 1. Procedural Shadow Lurker Animation
-  if (entities.enemy && groups.dungeon.visible) {
-    entities.enemy.position.y = Math.sin(time * 2.0) * 0.12 + 0.05;
+  // 1. Aggressive NPC AI & Chasing Movement
+  if (state.phase === 'arena' && groups.dungeon.visible) {
+    entities.enemies.forEach(enemy => {
+      const dist = groups.player.position.distanceTo(enemy.mesh.position);
 
-    const head = entities.enemy.getObjectByName('lurker_head');
-    if (head) {
-      if (Math.random() < 0.04) {
-        head.rotation.y = (Math.random() - 0.5) * 0.8;
-        head.rotation.z = (Math.random() - 0.5) * 0.5;
-      } else {
-        head.rotation.y = THREE.MathUtils.lerp(head.rotation.y, 0, 0.1);
-        head.rotation.z = THREE.MathUtils.lerp(head.rotation.z, 0, 0.1);
-      }
-    }
+      if (dist < 12.0) enemy.aggro = true;
 
-    ['arm_L1', 'arm_R1', 'arm_L2', 'arm_R2'].forEach((armName, idx) => {
-      const arm = entities.enemy.getObjectByName(armName);
-      if (arm) {
-        arm.rotation.x = Math.sin(time * 3 + idx * 1.2) * 0.15;
-        if (Math.random() < 0.02) {
-          arm.rotation.z += (Math.random() - 0.5) * 0.3;
+      if (enemy.aggro) {
+        enemy.mesh.lookAt(groups.player.position.x, enemy.mesh.position.y, groups.player.position.z);
+
+        if (dist > 1.2) {
+          const dir = new THREE.Vector3()
+            .subVectors(groups.player.position, enemy.mesh.position)
+            .normalize();
+          enemy.mesh.position.addScaledVector(dir, enemy.speed * delta);
+        } else {
+          state.hp -= 15 * delta;
+          updateHUD();
+          triggerScreenShake(0.1, 0.05);
+
+          if (state.hp <= 0 && callbacks.onPlayerDead) {
+            callbacks.onPlayerDead();
+          }
         }
       }
     });
-
-    entities.enemy.lookAt(groups.player.position.x, entities.enemy.position.y, groups.player.position.z);
   }
 
-  // 2. Cutscene Interpolation Logic
+  // 2. Living Wall Break & Frontal Tentacle Burst Mechanism
+  if (entities.livingWall && groups.dungeon.visible) {
+    const distToLivingWall = groups.player.position.distanceTo(entities.livingWall.position);
+
+    if (distToLivingWall < 6.5 && !livingWallState.triggered) {
+      livingWallState.triggered = true;
+      entities.tentacle.visible = true;
+      triggerScreenShake(1.5, 0.3);
+      if (callbacks.onTentacleSeen) callbacks.onTentacleSeen();
+    }
+
+    if (livingWallState.triggered) {
+      livingWallState.progress += delta * 2.2;
+
+      if (livingWallState.progress < 2.5) {
+        // Wall collapses downwards while Tentacle shoots OUT right in front of you
+        entities.livingWall.position.y = THREE.MathUtils.lerp(2.25, -2.5, livingWallState.progress / 2.5);
+
+        entities.livingWallDebris.forEach(b => {
+          b.visible = true;
+          b.position.y = THREE.MathUtils.lerp(0.2, 0.8, Math.sin(livingWallState.progress * 4));
+        });
+
+        // Wiggle tentacle directly towards camera/player
+        for (let s = 0; s < 14; s++) {
+          const seg = entities.tentacle.getObjectByName(`gt_seg_${s}`);
+          if (seg) {
+            seg.position.x = Math.sin(livingWallState.progress * 6 + s * 0.4) * 0.6;
+            seg.position.y = Math.cos(livingWallState.progress * 5 + s * 0.3) * 0.3;
+          }
+        }
+      } else if (livingWallState.progress >= 2.5 && livingWallState.progress < 5.0) {
+        // Tentacle pulls back into wall gap
+        const retractT = (livingWallState.progress - 2.5) / 2.5;
+        entities.tentacle.position.z = THREE.MathUtils.lerp(-6.5, -16.0, retractT);
+      } else {
+        // Wall rebuilds itself completely!
+        livingWallState.rebuilding = true;
+        const rebuildProgress = Math.min((livingWallState.progress - 5.0) / 2.0, 1.0);
+
+        entities.livingWall.position.y = THREE.MathUtils.lerp(-2.5, 2.25, rebuildProgress);
+
+        if (rebuildProgress >= 1.0) {
+          entities.tentacle.visible = false;
+          entities.livingWallDebris.forEach(b => b.visible = false);
+        }
+      }
+    }
+  }
+
+  // 3. Cutscene Camera Interpolation
   if (state.phase === 'cutscene' && cutsceneState.sequence.length > 0) {
     const targetKeyframe = cutsceneState.sequence[cutsceneState.index];
     cutsceneState.progress += delta / targetKeyframe.duration;
@@ -515,45 +652,44 @@ function animate() {
     }
   }
 
-  // 3. Corner Slithering Tentacle Mechanics
-  if (entities.tentacle && groups.dungeon.visible && entities.tentacle.visible) {
-    const dist = groups.player.position.distanceTo(entities.tentacle.position);
-    if (dist < 8.0 && !tentacleSlithering) {
-      tentacleSlithering = true;
-      if (callbacks.onTentacleSeen) callbacks.onTentacleSeen();
-    }
-
-    if (tentacleSlithering) {
-      tentacleSlitherProgress += delta * 2.2;
-
-      for (let s = 0; s < 8; s++) {
-        const seg = entities.tentacle.getObjectByName(`t_seg_${s}`);
-        if (seg) {
-          seg.position.x = Math.sin(tentacleSlitherProgress * 3 + s * 0.4) * 0.3;
-          seg.position.z = -s * 0.45 - tentacleSlitherProgress * 1.8;
-        }
-      }
-
-      if (tentacleSlitherProgress > 3.0) {
-        entities.tentacle.visible = false;
-      }
-    }
-  }
-
-  // 4. Camera Shake Processing
+  // 4. Camera Shake
   if (cutsceneState.shakeDuration > 0) {
     cutsceneState.shakeDuration -= delta;
     camera.position.x += (Math.random() - 0.5) * cutsceneState.shakeIntensity;
     camera.position.y += (Math.random() - 0.5) * cutsceneState.shakeIntensity;
   }
 
-  // 5. Player FPS Movement Update
+  // 5. FPS Player Movement with Collisions
   if (['tutorial', 'arena', 'boss'].includes(state.phase)) {
-    const speed = 5.2 * delta;
-    if (keys['w']) groups.player.translateZ(-speed);
-    if (keys['s']) groups.player.translateZ(speed);
-    if (keys['a']) groups.player.translateX(-speed);
-    if (keys['d']) groups.player.translateX(speed);
+    const moveSpeed = 5.2 * delta;
+    const moveDir = new THREE.Vector3();
+
+    if (keys['w']) moveDir.z -= 1;
+    if (keys['s']) moveDir.z += 1;
+    if (keys['a']) moveDir.x -= 1;
+    if (keys['d']) moveDir.x += 1;
+
+    if (moveDir.lengthSq() > 0) {
+      moveDir.normalize();
+
+      const targetPosX = groups.player.position.clone().addScaledVector(
+        new THREE.Vector3(moveDir.x, 0, 0).applyQuaternion(groups.player.quaternion),
+        moveSpeed
+      );
+
+      if (!checkCollisions(targetPosX)) {
+        groups.player.position.x = targetPosX.x;
+      }
+
+      const targetPosZ = groups.player.position.clone().addScaledVector(
+        new THREE.Vector3(0, 0, moveDir.z).applyQuaternion(groups.player.quaternion),
+        moveSpeed
+      );
+
+      if (!checkCollisions(targetPosZ)) {
+        groups.player.position.z = targetPosZ.z;
+      }
+    }
   }
 
   renderer.render(scene, camera);
