@@ -70,13 +70,11 @@ function createShipDeck() {
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.8, roughness: 0.4 });
   const clothMat = new THREE.MeshStandardMaterial({ color: 0x8a6f47, roughness: 0.9 });
 
-  // Main Floor Plank Structure
   const floorGeo = new THREE.BoxGeometry(14, 0.4, 20);
   const floor = new THREE.Mesh(floorGeo, woodDark);
   floor.position.y = -0.2;
   shipGroup.add(floor);
 
-  // Ship Hull Curved Ribs & Side Walls
   for (let z = -9; z <= 9; z += 3) {
     const ribLeft = new THREE.Mesh(new THREE.BoxGeometry(0.6, 4.5, 0.6), woodLight);
     ribLeft.position.set(-6.5, 2, z);
@@ -88,13 +86,11 @@ function createShipDeck() {
     ribRight.rotation.z = 0.15;
     shipGroup.add(ribRight);
 
-    // Overhead Support Beams
     const beam = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.4, 0.5), woodDark);
     beam.position.set(0, 4.1, z);
     shipGroup.add(beam);
   }
 
-  // Wooden Walls
   const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 20), woodDark);
   wallLeft.position.set(-6.8, 2, 0);
   shipGroup.add(wallLeft);
@@ -107,7 +103,6 @@ function createShipDeck() {
   wallBack.position.set(0, 2, -10);
   shipGroup.add(wallBack);
 
-  // Hanging Ship Lantern
   lanternLight = new THREE.PointLight(0xffa542, 3.5, 18, 1.5);
   lanternLight.position.set(0, 3.6, -2);
   shipGroup.add(lanternLight);
@@ -117,7 +112,6 @@ function createShipDeck() {
   lanternMesh.position.set(0, 3.8, -2);
   shipGroup.add(lanternMesh);
 
-  // Decorative Cargo Crates and Barrels
   for (let i = 0; i < 4; i++) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), woodLight);
     crate.position.set(-4.8 + (i % 2) * 1.3, 0.6, -7 + Math.floor(i / 2) * 1.3);
@@ -129,42 +123,26 @@ function createShipDeck() {
   barrel.position.set(5.2, 0.7, -6);
   shipGroup.add(barrel);
 
-  // ===== DETAILED SPARRING DUMMY =====
   dummyMesh = new THREE.Group();
-
-  // Iron Base
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 16), ironMat);
   base.position.y = 0.1;
   dummyMesh.add(base);
 
-  // Central Wooden Post
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 2.2, 12), woodLight);
   post.position.y = 1.1;
   dummyMesh.add(post);
 
-  // Leather Padded Torso
   const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.4, 1.3, 12), clothMat);
   torso.position.y = 1.55;
   dummyMesh.add(torso);
 
-  // Head/Target Sphere
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), clothMat);
   head.position.y = 2.35;
   dummyMesh.add(head);
 
-  // Wooden Crossbar Arms
   const arms = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 0.2), woodDark);
   arms.position.y = 1.8;
   dummyMesh.add(arms);
-
-  // Iron Reinforcement Bands
-  const band1 = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.08, 12), ironMat);
-  band1.position.y = 1.3;
-  dummyMesh.add(band1);
-
-  const band2 = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.08, 12), ironMat);
-  band2.position.y = 1.95;
-  dummyMesh.add(band2);
 
   dummyMesh.position.set(0, 0, -3);
   shipGroup.add(dummyMesh);
@@ -238,6 +216,8 @@ function createBossArena() {
 }
 
 export function setupInput() {
+  const canvas = document.getElementById('gl-canvas');
+
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     keys[k] = true;
@@ -255,12 +235,19 @@ export function setupInput() {
   });
 
   window.addEventListener('mousemove', e => {
-    if (document.pointerLockElement === document.getElementById('gl-canvas') || document.pointerLockElement === document.body) {
+    if (document.pointerLockElement === canvas || document.pointerLockElement === document.body) {
       player.rotation.y -= e.movementX * 0.003;
     }
   });
 
-  window.addEventListener('click', onStrike);
+  // Canvas Click Handler: Locks mouse & guarantees keyboard focus
+  canvas.addEventListener('click', () => {
+    window.focus();
+    if (state.phase !== 'cutscene' && canvas.requestPointerLock) {
+      canvas.requestPointerLock();
+    }
+    onStrike();
+  });
 }
 
 function onStrike() {
@@ -353,20 +340,19 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
-  // Subtle flicker for ship lantern
   if (lanternLight && shipGroup.visible) {
     lanternLight.intensity = 3.2 + Math.sin(time * 12) * 0.3;
   }
 
-  // Player controls are allowed when not in a cutscene
-  if (state.phase !== 'cutscene') {
-    const speed = 4.5 * delta;
+  // Active player movement logic
+  if (state.phase === 'tutorial' || state.phase === 'arena' || state.phase === 'boss') {
+    const speed = 5.0 * delta;
     if (keys['w'] || keys['arrowup']) player.translateZ(-speed);
     if (keys['s'] || keys['arrowdown']) player.translateZ(speed);
     if (keys['a'] || keys['arrowleft']) player.translateX(-speed);
     if (keys['d'] || keys['arrowright']) player.translateX(speed);
+    
 
-    // Keep player within ship bounds during tutorial
     if (state.phase === 'tutorial') {
       player.position.x = Math.max(-5.5, Math.min(5.5, player.position.x));
       player.position.z = Math.max(-8.5, Math.min(8.5, player.position.z));
