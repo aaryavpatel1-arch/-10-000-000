@@ -7,6 +7,7 @@ export const state = {
   phase: 'start',
   level: 0,
   hp: 100,
+  battery: 100,
   dummyHits: 0,
   tutorialComplete: false,
   flashlightOn: false
@@ -37,7 +38,9 @@ const groups = {
 // Entities & Mechanics
 const entities = {
   dummy: null,
-  enemies: [],       // Multiple aggressive NPCs
+  enemies: [],        // Array for multiple enemies
+  projectiles: [],    // Ranged enemy projectiles
+  pickups: [],        // Health & Battery pickups
   tentacle: null,
   kraken: null,
   ladder: null,
@@ -220,7 +223,7 @@ function setupDungeonMaze() {
     }
   }
 
-  // 3. Living Wall Section (Positioned Directly In Front of Pathway)
+  // 3. Living Wall Section
   entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 1.2), wallMat);
   entities.livingWall.position.set(0, 2.25, -6);
   groups.dungeon.add(entities.livingWall);
@@ -228,20 +231,15 @@ function setupDungeonMaze() {
   const livingBox = new THREE.Box3().setFromObject(entities.livingWall);
   colliders.push(livingBox);
 
-  // Debris Bricks for Living Wall Regeneration
   for (let b = 0; b < 12; b++) {
     const brick = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.4, 0.8), wallMat);
-    brick.position.set(
-      (Math.random() - 0.5) * 5,
-      0.2,
-      -6 + (Math.random() - 0.5) * 2
-    );
+    brick.position.set((Math.random() - 0.5) * 5, 0.2, -6 + (Math.random() - 0.5) * 2);
     brick.visible = false;
     entities.livingWallDebris.push(brick);
     groups.dungeon.add(brick);
   }
 
-  // 4. Massive Giant Tentacle (Shoots Out directly in Front of Player)
+  // 4. Massive Giant Tentacle
   entities.tentacle = new THREE.Group();
   const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.2 });
 
@@ -250,7 +248,7 @@ function setupDungeonMaze() {
       new THREE.CylinderGeometry(0.6 - s * 0.035, 0.7 - s * 0.035, 1.0, 12),
       tentacleMat
     );
-    seg.position.z = s * 0.9; // Extends forward out of wall
+    seg.position.z = s * 0.9;
     seg.name = `gt_seg_${s}`;
     entities.tentacle.add(seg);
   }
@@ -320,58 +318,122 @@ function setupBossArena() {
 }
 
 // ==========================================
-// CREATURE / NPC SPAWNING & AI
+// MULTIPLE ENEMY TYPES & PICKUPS SPAWNING
 // ==========================================
 export function spawnEnemiesForLevel(count = 3) {
+  // Clear Existing Enemies & Projectiles
   entities.enemies.forEach(e => groups.dungeon.remove(e.mesh));
+  entities.projectiles.forEach(p => groups.dungeon.remove(p.mesh));
+  entities.pickups.forEach(p => groups.dungeon.remove(p.mesh));
   entities.enemies = [];
-
-  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.1, metalness: 0.2 });
-  const boneMat = new THREE.MeshStandardMaterial({ color: 0x12161a, roughness: 0.4 });
-  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+  entities.projectiles = [];
+  entities.pickups = [];
 
   for (let i = 0; i < count; i++) {
-    const enemyGroup = new THREE.Group();
-
-    for (let s = 0; s < 5; s++) {
-      const v = new THREE.Mesh(new THREE.ConeGeometry(0.35 - s * 0.04, 0.5, 6), boneMat);
-      v.position.set(0, 1.2 + s * 0.3, -s * 0.08);
-      v.rotation.x = 0.25;
-      enemyGroup.add(v);
-    }
-
-    const headGroup = new THREE.Group();
-    headGroup.name = 'lurker_head';
-    headGroup.position.set(0, 2.7, -0.3);
-
-    const skull = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 7), shadowMat);
-    skull.rotation.x = -Math.PI / 2.2;
-    headGroup.add(skull);
-
-    [-0.12, 0.12].forEach(xOff => {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeGlowMat);
-      eye.position.set(xOff, 0.05, -0.35);
-      headGroup.add(eye);
-    });
-    enemyGroup.add(headGroup);
-
-    [-1, 1].forEach(side => {
-      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.07, 1.4, 6), shadowMat);
-      arm.position.set(side * 0.6, 1.8, 0.2);
-      arm.rotation.z = side * -0.8;
-      enemyGroup.add(arm);
-    });
+    const isRanged = i % 2 === 1; // Alternate enemy types
+    const enemyMesh = isRanged ? createSpitterEnemy() : createLurkerEnemy();
 
     const spawnX = (Math.random() - 0.5) * 36;
     const spawnZ = (Math.random() - 0.5) * 36;
-    enemyGroup.position.set(spawnX, 0, spawnZ);
+    enemyMesh.position.set(spawnX, 0, spawnZ);
 
-    groups.dungeon.add(enemyGroup);
+    groups.dungeon.add(enemyMesh);
     entities.enemies.push({
-      mesh: enemyGroup,
-      hp: 50,
+      mesh: enemyMesh,
+      type: isRanged ? 'spitter' : 'lurker',
+      hp: isRanged ? 40 : 60,
       aggro: false,
-      speed: 3.2
+      speed: isRanged ? 2.4 : 3.6,
+      attackCooldown: 0
+    });
+  }
+
+  spawnMapPickups(3);
+}
+
+function createLurkerEnemy() {
+  const shadowMat = new THREE.MeshStandardMaterial({ color: 0x030406, roughness: 0.1 });
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0x12161a, roughness: 0.4 });
+  const eyeGlowMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+
+  const enemyGroup = new THREE.Group();
+
+  for (let s = 0; s < 5; s++) {
+    const v = new THREE.Mesh(new THREE.ConeGeometry(0.35 - s * 0.04, 0.5, 6), boneMat);
+    v.position.set(0, 1.2 + s * 0.3, -s * 0.08);
+    v.rotation.x = 0.25;
+    enemyGroup.add(v);
+  }
+
+  const headGroup = new THREE.Group();
+  headGroup.position.set(0, 2.7, -0.3);
+
+  const skull = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.7, 7), shadowMat);
+  skull.rotation.x = -Math.PI / 2.2;
+  headGroup.add(skull);
+
+  [-0.12, 0.12].forEach(xOff => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), eyeGlowMat);
+    eye.position.set(xOff, 0.05, -0.35);
+    headGroup.add(eye);
+  });
+  enemyGroup.add(headGroup);
+
+  return enemyGroup;
+}
+
+function createSpitterEnemy() {
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x220511, roughness: 0.3 });
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xff0066 });
+
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.2, 2.2, 8), bodyMat);
+  body.position.y = 1.1;
+  group.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 12, 12), glowMat);
+  head.position.y = 2.3;
+  group.add(head);
+
+  return group;
+}
+
+function spawnMapPickups(amount = 3) {
+  for (let p = 0; p < amount; p++) {
+    const isHealth = Math.random() > 0.5;
+    const itemGroup = new THREE.Group();
+
+    if (isHealth) {
+      const bottle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.15, 0.2, 0.5, 8),
+        new THREE.MeshBasicMaterial({ color: 0xff0044 })
+      );
+      bottle.position.y = 0.5;
+      itemGroup.add(bottle);
+
+      const light = new THREE.PointLight(0xff0044, 1.2, 4);
+      light.position.y = 0.5;
+      itemGroup.add(light);
+    } else {
+      const battery = new THREE.Mesh(
+        new THREE.BoxGeometry(0.2, 0.4, 0.2),
+        new THREE.MeshBasicMaterial({ color: 0xffcc00 })
+      );
+      battery.position.y = 0.5;
+      itemGroup.add(battery);
+
+      const light = new THREE.PointLight(0xffcc00, 1.2, 4);
+      light.position.y = 0.5;
+      itemGroup.add(light);
+    }
+
+    itemGroup.position.set((Math.random() - 0.5) * 32, 0, (Math.random() - 0.5) * 32);
+    groups.dungeon.add(itemGroup);
+
+    entities.pickups.push({
+      mesh: itemGroup,
+      type: isHealth ? 'health' : 'battery'
     });
   }
 }
@@ -387,9 +449,7 @@ function checkCollisions(newPosition) {
   );
 
   for (let box of colliders) {
-    if (playerBox.intersectsBox(box)) {
-      return true;
-    }
+    if (playerBox.intersectsBox(box)) return true;
   }
   return false;
 }
@@ -404,11 +464,10 @@ export function setupInput() {
     const k = e.key.toLowerCase();
     keys[k] = true;
 
-    if (k === 'f') {
+    if (k === 'f' && state.battery > 0) {
       state.flashlightOn = !state.flashlightOn;
       flashlight.intensity = state.flashlightOn ? 16 : 0;
-      const statusEl = document.getElementById('fl-status');
-      if (statusEl) statusEl.textContent = state.flashlightOn ? 'ON' : 'OFF';
+      updateHUD();
     }
 
     if (k === 'e' && state.phase === 'arena' && entities.ladder) {
@@ -492,7 +551,7 @@ export function setDungeonVisibility(v) { groups.dungeon.visible = v; }
 export function setBossArenaVisibility(v) { groups.boss.visible = v; }
 
 export function spawnEnemy(lvl) {
-  spawnEnemiesForLevel(Math.min(2 + Math.floor(lvl / 3), 8));
+  spawnEnemiesForLevel(Math.min(2 + Math.floor(lvl / 2), 10));
 }
 
 export function spawnKraken() {
@@ -519,12 +578,16 @@ export function triggerStorm(duration) {
 export function updateHUD() {
   const zd = document.getElementById('zone-display');
   const hb = document.getElementById('health-bar');
+  const flStatus = document.getElementById('fl-status');
+
   if (zd) zd.textContent = state.phase === 'tutorial' ? 'ZONE: SHIP DECK' : `ZONE: ARENA LEVEL ${state.level} / 100`;
   if (hb) hb.style.width = `${Math.max(0, state.hp)}%`;
+  if (flStatus) flStatus.textContent = `${state.flashlightOn ? 'ON' : 'OFF'} (${Math.round(state.battery)}%)`;
 }
 
 export function resetGame() {
   state.hp = 100;
+  state.battery = 100;
   state.level = 0;
   state.dummyHits = 0;
   groups.player.position.set(0, 1.6, 5);
@@ -546,35 +609,99 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
-  // 1. Aggressive NPC AI & Chasing Movement
+  // Flashlight Drain Mechanics
+  if (state.flashlightOn) {
+    state.battery -= delta * 3.5;
+    if (state.battery <= 0) {
+      state.battery = 0;
+      state.flashlightOn = false;
+      flashlight.intensity = 0;
+    }
+    updateHUD();
+  }
+
+  // 1. Enemy AI & Behaviors
   if (state.phase === 'arena' && groups.dungeon.visible) {
     entities.enemies.forEach(enemy => {
       const dist = groups.player.position.distanceTo(enemy.mesh.position);
-
       if (dist < 12.0) enemy.aggro = true;
 
       if (enemy.aggro) {
         enemy.mesh.lookAt(groups.player.position.x, enemy.mesh.position.y, groups.player.position.z);
 
-        if (dist > 1.2) {
-          const dir = new THREE.Vector3()
-            .subVectors(groups.player.position, enemy.mesh.position)
-            .normalize();
-          enemy.mesh.position.addScaledVector(dir, enemy.speed * delta);
-        } else {
-          state.hp -= 15 * delta;
-          updateHUD();
-          triggerScreenShake(0.1, 0.05);
+        if (enemy.type === 'lurker') {
+          if (dist > 1.2) {
+            const dir = new THREE.Vector3().subVectors(groups.player.position, enemy.mesh.position).normalize();
+            enemy.mesh.position.addScaledVector(dir, enemy.speed * delta);
+          } else {
+            state.hp -= 15 * delta;
+            updateHUD();
+            triggerScreenShake(0.1, 0.05);
+          }
+        } else if (enemy.type === 'spitter') {
+          // Keep distance & shoot projectiles
+          if (dist < 6.0) {
+            const retreatDir = new THREE.Vector3().subVectors(enemy.mesh.position, groups.player.position).normalize();
+            enemy.mesh.position.addScaledVector(retreatDir, enemy.speed * delta);
+          }
 
-          if (state.hp <= 0 && callbacks.onPlayerDead) {
-            callbacks.onPlayerDead();
+          enemy.attackCooldown -= delta;
+          if (enemy.attackCooldown <= 0) {
+            enemy.attackCooldown = 2.5;
+
+            // Spawn Projectile
+            const projMesh = new THREE.Mesh(
+              new THREE.SphereGeometry(0.2, 8, 8),
+              new THREE.MeshBasicMaterial({ color: 0xff0066 })
+            );
+            projMesh.position.copy(enemy.mesh.position).add(new THREE.Vector3(0, 1.8, 0));
+
+            const dir = new THREE.Vector3().subVectors(groups.player.position, projMesh.position).normalize();
+            groups.dungeon.add(projMesh);
+
+            entities.projectiles.push({ mesh: projMesh, dir: dir, life: 4.0 });
           }
         }
+
+        if (state.hp <= 0 && callbacks.onPlayerDead) callbacks.onPlayerDead();
+      }
+    });
+
+    // Process Projectiles
+    entities.projectiles.forEach((p, idx) => {
+      p.mesh.position.addScaledVector(p.dir, 8.0 * delta);
+      p.life -= delta;
+
+      if (groups.player.position.distanceTo(p.mesh.position) < 1.0) {
+        state.hp -= 10;
+        updateHUD();
+        triggerScreenShake(0.2, 0.1);
+        groups.dungeon.remove(p.mesh);
+        entities.projectiles.splice(idx, 1);
+      } else if (p.life <= 0) {
+        groups.dungeon.remove(p.mesh);
+        entities.projectiles.splice(idx, 1);
+      }
+    });
+
+    // Process Pickup Collection
+    entities.pickups.forEach((pickup, idx) => {
+      pickup.mesh.rotation.y += delta * 2.0;
+
+      if (groups.player.position.distanceTo(pickup.mesh.position) < 1.2) {
+        if (pickup.type === 'health') {
+          state.hp = Math.min(100, state.hp + 25);
+        } else if (pickup.type === 'battery') {
+          state.battery = 100;
+        }
+        updateHUD();
+        groups.dungeon.remove(pickup.mesh);
+        entities.pickups.splice(idx, 1);
       }
     });
   }
 
-  // 2. Living Wall Break & Frontal Tentacle Burst Mechanism
+  // 2. Living Wall Break & Tentacle Burst
   if (entities.livingWall && groups.dungeon.visible) {
     const distToLivingWall = groups.player.position.distanceTo(entities.livingWall.position);
 
@@ -589,7 +716,6 @@ function animate() {
       livingWallState.progress += delta * 2.2;
 
       if (livingWallState.progress < 2.5) {
-        // Wall collapses downwards while Tentacle shoots OUT right in front of you
         entities.livingWall.position.y = THREE.MathUtils.lerp(2.25, -2.5, livingWallState.progress / 2.5);
 
         entities.livingWallDebris.forEach(b => {
@@ -597,7 +723,6 @@ function animate() {
           b.position.y = THREE.MathUtils.lerp(0.2, 0.8, Math.sin(livingWallState.progress * 4));
         });
 
-        // Wiggle tentacle directly towards camera/player
         for (let s = 0; s < 14; s++) {
           const seg = entities.tentacle.getObjectByName(`gt_seg_${s}`);
           if (seg) {
@@ -606,11 +731,9 @@ function animate() {
           }
         }
       } else if (livingWallState.progress >= 2.5 && livingWallState.progress < 5.0) {
-        // Tentacle pulls back into wall gap
         const retractT = (livingWallState.progress - 2.5) / 2.5;
         entities.tentacle.position.z = THREE.MathUtils.lerp(-6.5, -16.0, retractT);
       } else {
-        // Wall rebuilds itself completely!
         livingWallState.rebuilding = true;
         const rebuildProgress = Math.min((livingWallState.progress - 5.0) / 2.0, 1.0);
 
@@ -624,7 +747,7 @@ function animate() {
     }
   }
 
-  // 3. Cutscene Camera Interpolation
+  // 3. Cutscene Interpolation
   if (state.phase === 'cutscene' && cutsceneState.sequence.length > 0) {
     const targetKeyframe = cutsceneState.sequence[cutsceneState.index];
     cutsceneState.progress += delta / targetKeyframe.duration;
@@ -659,7 +782,7 @@ function animate() {
     camera.position.y += (Math.random() - 0.5) * cutsceneState.shakeIntensity;
   }
 
-  // 5. FPS Player Movement with Collisions
+  // 5. FPS Player Movement with Wall Collisions
   if (['tutorial', 'arena', 'boss'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
