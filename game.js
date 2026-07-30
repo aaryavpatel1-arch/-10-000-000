@@ -18,7 +18,7 @@ export const callbacks = {
   onBossDefeated: null
 };
 
-let scene, camera, renderer, player, flashlight;
+let scene, camera, renderer, player, flashlight, lanternLight;
 let shipGroup, dungeonGroup, bossGroup;
 let dummyMesh, enemyMesh, shadowTentacleMesh, krakenMesh;
 let tentaclesList = [];
@@ -32,10 +32,10 @@ export function initEngine() {
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  const ambient = new THREE.AmbientLight(0xfff5e6, 1.5);
+  const ambient = new THREE.AmbientLight(0xffebd2, 0.6);
   scene.add(ambient);
 
   createPlayerAndFlashlight();
@@ -65,16 +65,108 @@ function createPlayerAndFlashlight() {
 function createShipDeck() {
   shipGroup = new THREE.Group();
 
-  const floorGeo = new THREE.BoxGeometry(12, 0.4, 16);
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
-  const floor = new THREE.Mesh(floorGeo, woodMat);
+  const woodDark = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.8 });
+  const woodLight = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.7 });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.8, roughness: 0.4 });
+  const clothMat = new THREE.MeshStandardMaterial({ color: 0x8a6f47, roughness: 0.9 });
+
+  // Main Floor Plank Structure
+  const floorGeo = new THREE.BoxGeometry(14, 0.4, 20);
+  const floor = new THREE.Mesh(floorGeo, woodDark);
   floor.position.y = -0.2;
   shipGroup.add(floor);
 
-  const dummyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.8, 12);
-  const dummyMat = new THREE.MeshStandardMaterial({ color: 0x8a6f47 });
-  dummyMesh = new THREE.Mesh(dummyGeo, dummyMat);
-  dummyMesh.position.set(0, 0.9, -3);
+  // Ship Hull Curved Ribs & Side Walls
+  for (let z = -9; z <= 9; z += 3) {
+    const ribLeft = new THREE.Mesh(new THREE.BoxGeometry(0.6, 4.5, 0.6), woodLight);
+    ribLeft.position.set(-6.5, 2, z);
+    ribLeft.rotation.z = -0.15;
+    shipGroup.add(ribLeft);
+
+    const ribRight = new THREE.Mesh(new THREE.BoxGeometry(0.6, 4.5, 0.6), woodLight);
+    ribRight.position.set(6.5, 2, z);
+    ribRight.rotation.z = 0.15;
+    shipGroup.add(ribRight);
+
+    // Overhead Support Beams
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(13.5, 0.4, 0.5), woodDark);
+    beam.position.set(0, 4.1, z);
+    shipGroup.add(beam);
+  }
+
+  // Wooden Walls
+  const wallLeft = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 20), woodDark);
+  wallLeft.position.set(-6.8, 2, 0);
+  shipGroup.add(wallLeft);
+
+  const wallRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 4, 20), woodDark);
+  wallRight.position.set(6.8, 2, 0);
+  shipGroup.add(wallRight);
+
+  const wallBack = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 0.4), woodDark);
+  wallBack.position.set(0, 2, -10);
+  shipGroup.add(wallBack);
+
+  // Hanging Ship Lantern
+  lanternLight = new THREE.PointLight(0xffa542, 3.5, 18, 1.5);
+  lanternLight.position.set(0, 3.6, -2);
+  shipGroup.add(lanternLight);
+
+  const lanternGeo = new THREE.CylinderGeometry(0.2, 0.25, 0.5, 8);
+  const lanternMesh = new THREE.Mesh(lanternGeo, ironMat);
+  lanternMesh.position.set(0, 3.8, -2);
+  shipGroup.add(lanternMesh);
+
+  // Decorative Cargo Crates and Barrels
+  for (let i = 0; i < 4; i++) {
+    const crate = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 1.2), woodLight);
+    crate.position.set(-4.8 + (i % 2) * 1.3, 0.6, -7 + Math.floor(i / 2) * 1.3);
+    shipGroup.add(crate);
+  }
+
+  const barrelGeo = new THREE.CylinderGeometry(0.6, 0.6, 1.4, 12);
+  const barrel = new THREE.Mesh(barrelGeo, woodDark);
+  barrel.position.set(5.2, 0.7, -6);
+  shipGroup.add(barrel);
+
+  // ===== DETAILED SPARRING DUMMY =====
+  dummyMesh = new THREE.Group();
+
+  // Iron Base
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 16), ironMat);
+  base.position.y = 0.1;
+  dummyMesh.add(base);
+
+  // Central Wooden Post
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 2.2, 12), woodLight);
+  post.position.y = 1.1;
+  dummyMesh.add(post);
+
+  // Leather Padded Torso
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.4, 1.3, 12), clothMat);
+  torso.position.y = 1.55;
+  dummyMesh.add(torso);
+
+  // Head/Target Sphere
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 12), clothMat);
+  head.position.y = 2.35;
+  dummyMesh.add(head);
+
+  // Wooden Crossbar Arms
+  const arms = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 0.2), woodDark);
+  arms.position.y = 1.8;
+  dummyMesh.add(arms);
+
+  // Iron Reinforcement Bands
+  const band1 = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.08, 12), ironMat);
+  band1.position.y = 1.3;
+  dummyMesh.add(band1);
+
+  const band2 = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.08, 12), ironMat);
+  band2.position.y = 1.95;
+  dummyMesh.add(band2);
+
+  dummyMesh.position.set(0, 0, -3);
   shipGroup.add(dummyMesh);
 
   scene.add(shipGroup);
@@ -158,7 +250,9 @@ export function setupInput() {
     }
   });
 
-  window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+  window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+  });
 
   window.addEventListener('mousemove', e => {
     if (document.pointerLockElement === document.getElementById('gl-canvas') || document.pointerLockElement === document.body) {
@@ -175,8 +269,8 @@ function onStrike() {
   if (state.phase === 'tutorial' && dummyMesh) {
     if (player.position.distanceTo(dummyMesh.position) < 4) {
       state.dummyHits++;
-      dummyMesh.rotation.x = 0.2;
-      setTimeout(() => dummyMesh.rotation.x = 0, 100);
+      dummyMesh.rotation.z = 0.15;
+      setTimeout(() => dummyMesh.rotation.z = 0, 120);
 
       if (state.dummyHits >= 5 && callbacks.onDummyComplete) {
         callbacks.onDummyComplete();
@@ -259,12 +353,24 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
+  // Subtle flicker for ship lantern
+  if (lanternLight && shipGroup.visible) {
+    lanternLight.intensity = 3.2 + Math.sin(time * 12) * 0.3;
+  }
+
+  // Player controls are allowed when not in a cutscene
   if (state.phase !== 'cutscene') {
     const speed = 4.5 * delta;
-    if (keys['w']) player.translateZ(-speed);
-    if (keys['s']) player.translateZ(speed);
-    if (keys['a']) player.translateX(-speed);
-    if (keys['d']) player.translateX(speed);
+    if (keys['w'] || keys['arrowup']) player.translateZ(-speed);
+    if (keys['s'] || keys['arrowdown']) player.translateZ(speed);
+    if (keys['a'] || keys['arrowleft']) player.translateX(-speed);
+    if (keys['d'] || keys['arrowright']) player.translateX(speed);
+
+    // Keep player within ship bounds during tutorial
+    if (state.phase === 'tutorial') {
+      player.position.x = Math.max(-5.5, Math.min(5.5, player.position.x));
+      player.position.z = Math.max(-8.5, Math.min(8.5, player.position.z));
+    }
 
     if (state.phase === 'boss' && krakenMesh) {
       krakenMesh.position.y = Math.sin(time * 2) * 0.5;
