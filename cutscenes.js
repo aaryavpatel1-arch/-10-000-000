@@ -1,9 +1,10 @@
 import {
   initEngine, setupInput, state, callbacks,
   setPhase, setShipVisibility, setDungeonVisibility, setBossArenaVisibility,
-  spawnEnemy, spawnShadowTentacle, spawnKraken, triggerStorm,
+  spawnEnemy, spawnShadowTentacle, spawnKraken, triggerStorm, startCinematicCam,
   updateHUD, resetGame
 } from './game.js';
+import * as THREE from 'three';
 
 let dialogueOverlay, dialogueTitle, dialogueText, dialogueBtn;
 let hud, startScreen;
@@ -98,6 +99,9 @@ function beginTutorial() {
   state.level = 0;
   updateHUD();
 
+  // Cinematic Camera Pan across ship
+  startCinematicCam(new THREE.Vector3(0, 2.5, 2), new THREE.Vector3(0, 1.2, -3), 2.5);
+
   showDialogue(
     'TUTORIAL: SHIP DECK', 
     'You are below deck of the merchant vessel Sable Crown. Use WASD to move and CLICK or SPACE near the sparring dummy to strike it 5 times.'
@@ -113,24 +117,27 @@ function beginTutorial() {
 function onTutorialComplete() {
   setPhase('cutscene');
   try { document.exitPointerLock(); } catch (e) {}
-  triggerStorm(2500);
+  triggerStorm(3000);
+
+  // Cinematic Ship Sinking Motion
+  startCinematicCam(new THREE.Vector3(0, 4, -1), new THREE.Vector3(0, 0, -8), 3);
 
   setTimeout(() => {
     targetPhaseAfterDialogue = 'arena';
     queueDialogues([
       {
         title: 'WASHED UP',
-        text: 'A rogue wave shatters the hull. You wash ashore into a foggy, hostile world. Prepare yourself for the arena.'
+        text: 'A rogue wave shatters the hull. You wash ashore into a foggy, hostile maze. Shadow lurkers stalk the darkness.'
       },
       {
         title: 'THE $10,000,000 CONTRACT',
-        text: 'A shadowy broker offers a deadly contract: survive a hundred arena sectors and claim the prize.'
+        text: 'A shadowy broker offers a deadly contract: survive a hundred arena sectors, defeat the lurkers, and claim the prize.'
       }
     ], () => {
       setShipVisibility(false);
       beginArena();
     });
-  }, 2500);
+  }, 2800);
 }
 
 function beginArena() {
@@ -159,6 +166,7 @@ function nextArenaLevel() {
 function onEnemyDefeated() {
   if (state.level >= 99) {
     targetPhaseAfterDialogue = 'boss';
+    startCinematicCam(new THREE.Vector3(0, 10, -5), new THREE.Vector3(0, 0, -20), 3.5);
     showDialogue(
       'LEVEL 100: THE ABYSS GATEWAY', 
       'The arena floor drops away into a subterranean ocean pit. Something vast breaches the surface.'
@@ -191,6 +199,8 @@ function startBossPhase() {
   setBossArenaVisibility(true);
   spawnKraken();
   updateHUD();
+
+  startCinematicCam(new THREE.Vector3(0, 6, 8), new THREE.Vector3(0, 2, -20), 4);
 }
 
 function onAllTentaclesDead() {
@@ -220,7 +230,7 @@ function onBossDefeated() {
 
 function onPlayerDead() {
   targetPhaseAfterDialogue = 'tutorial';
-  showDialogue('KNOCKED OUT', 'You collapse in the dust. Arena medics drag you to the infirmary.');
+  showDialogue('KNOCKED OUT', 'The shadow lurker overwhelmed you. Arena medics drag you back to safety.');
   pendingContinue = () => {
     resetGame();
     beginTutorial();
