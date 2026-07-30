@@ -79,7 +79,7 @@ function playDungeonArrivalCutscene() {
   state.level = 1;
   updateHUD();
 
-  showBanner("ZONE 1: THE LIVING MAZE", "FIND THE GLOWING LADDER & PRESS 'E' TO ESCAPE");
+  showBanner("ZONE 1: THE LIVING MAZE", "FIND THE LADDER & WATCH OUT FOR RANGED SPITTERS!");
 
   startCinematicSequence([
     {
@@ -179,7 +179,7 @@ function onTentacleSeen() {
   if (hint) {
     hint.textContent = 'THE LIVING WALL BURST OPEN RIGHT IN FRONT OF YOU!';
     setTimeout(() => {
-      if (hint) hint.textContent = 'FIND THE LADDER & PRESS E TO ASCEND';
+      if (hint) hint.textContent = 'COLLECT BATTERIES & POTIONS TO SURVIVE';
     }, 4000);
   }
 }
