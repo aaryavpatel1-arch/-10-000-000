@@ -20,22 +20,32 @@ export const callbacks = {
 
 let scene, camera, renderer, player, flashlight, lanternLight;
 let shipGroup, dungeonGroup, bossGroup;
-let dummyMesh, enemyMesh, shadowTentacleMesh, krakenMesh;
+let dummyMesh, enemyMesh, enemyEyes, shadowTentacleMesh, krakenMesh;
 let tentaclesList = [];
 let keys = {};
 let clock = new THREE.Clock();
 
+// Cutscene camera animation state
+export const cutsceneCam = {
+  active: false,
+  startPos: new THREE.Vector3(),
+  targetPos: new THREE.Vector3(),
+  lookTarget: new THREE.Vector3(),
+  progress: 0,
+  duration: 1
+};
+
 export function initEngine() {
   const canvas = document.getElementById('gl-canvas');
   scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(0x0e1118, 0.035);
+  scene.fog = new THREE.FogExp2(0x0a0c10, 0.04);
 
   camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
 
-  const ambient = new THREE.AmbientLight(0xffebd2, 0.6);
+  const ambient = new THREE.AmbientLight(0xffebd2, 0.5);
   scene.add(ambient);
 
   createPlayerAndFlashlight();
@@ -123,6 +133,7 @@ function createShipDeck() {
   barrel.position.set(5.2, 0.7, -6);
   shipGroup.add(barrel);
 
+  // Training Dummy
   dummyMesh = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.8, 0.2, 16), ironMat);
   base.position.y = 0.1;
@@ -152,34 +163,65 @@ function createShipDeck() {
 
 function createDungeonMaze() {
   dungeonGroup = new THREE.Group();
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x22252e });
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x111318 });
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x181a20, roughness: 0.9 });
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x0c0e12, roughness: 0.95 });
 
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), floorMat);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), floorMat);
   floor.rotation.x = -Math.PI / 2;
   dungeonGroup.add(floor);
 
-  for (let i = -20; i <= 20; i += 8) {
-    for (let j = -20; j <= 20; j += 8) {
-      if (Math.random() > 0.4) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 4, 6), wallMat);
-        wall.position.set(i, 2, j);
-        dungeonGroup.add(wall);
+  for (let i = -24; i <= 24; i += 8) {
+    for (let j = -24; j <= 24; j += 8) {
+      if (Math.abs(i) > 2 || Math.abs(j) > 2) {
+        if (Math.random() > 0.35) {
+          const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 6), wallMat);
+          wall.position.set(i, 2.25, j);
+          dungeonGroup.add(wall);
+        }
       }
     }
   }
 
-  const enemyGeo = new THREE.BoxGeometry(1, 2, 1);
-  const enemyMat = new THREE.MeshStandardMaterial({ color: 0x8c2b2b });
-  enemyMesh = new THREE.Mesh(enemyGeo, enemyMat);
-  enemyMesh.position.set(0, 1, -8);
+  // SCARY SHADOW LURKER ENEMY
+  enemyMesh = new THREE.Group();
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x08080a, roughness: 0.3, metalness: 0.5 });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0022 });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.1, 2.2, 8), darkMat);
+  body.position.y = 1.1;
+  enemyMesh.add(body);
+
+  const eHead = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 12), darkMat);
+  eHead.position.y = 2.2;
+  enemyMesh.add(eHead);
+
+  // Glowing Red Eyes
+  enemyEyes = new THREE.Group();
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeMat);
+  eyeL.position.set(-0.12, 2.25, -0.28);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeMat);
+  eyeR.position.set(0.12, 2.25, -0.28);
+  enemyEyes.add(eyeL);
+  enemyEyes.add(eyeR);
+  enemyMesh.add(enemyEyes);
+
+  // Spikes / Claws
+  for (let i = 0; i < 4; i++) {
+    const claw = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.8, 6), darkMat);
+    claw.rotation.x = Math.PI / 3;
+    claw.position.set((i % 2 === 0 ? 0.35 : -0.35), 1.2 + i * 0.2, -0.1);
+    enemyMesh.add(claw);
+  }
+
+  enemyMesh.position.set(0, 0, -10);
   dungeonGroup.add(enemyMesh);
 
-  const tentacleGeo = new THREE.CylinderGeometry(0.2, 0.5, 5, 8);
-  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x1f5c66 });
+  // Writhing Shadow Tentacle
+  const tentacleGeo = new THREE.CylinderGeometry(0.15, 0.45, 6, 12);
+  const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x0d282e, roughness: 0.4 });
   shadowTentacleMesh = new THREE.Mesh(tentacleGeo, tentacleMat);
-  shadowTentacleMesh.position.set(12, 2.5, -12);
-  shadowTentacleMesh.rotation.z = Math.PI / 4;
+  shadowTentacleMesh.position.set(8, 2, -12);
+  shadowTentacleMesh.rotation.z = Math.PI / 5;
   dungeonGroup.add(shadowTentacleMesh);
 
   dungeonGroup.visible = false;
@@ -188,31 +230,45 @@ function createDungeonMaze() {
 
 function createBossArena() {
   bossGroup = new THREE.Group();
-  const waterMat = new THREE.MeshStandardMaterial({ color: 0x091d24, roughness: 0.1 });
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x051318, roughness: 0.1 });
 
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), waterMat);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), waterMat);
   water.rotation.x = -Math.PI / 2;
   bossGroup.add(water);
 
   krakenMesh = new THREE.Group();
-  const head = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 16), new THREE.MeshStandardMaterial({ color: 0x123138 }));
+  const head = new THREE.Mesh(new THREE.SphereGeometry(4.5, 16, 16), new THREE.MeshStandardMaterial({ color: 0x0e2b30, roughness: 0.5 }));
   head.position.y = 2;
   krakenMesh.add(head);
 
+  // Glowing Eye Core
+  const coreEye = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 16), new THREE.MeshBasicMaterial({ color: 0xff1100 }));
+  coreEye.position.set(0, 3, -3.2);
+  krakenMesh.add(coreEye);
+
   tentaclesList = [];
   for (let i = 0; i < 6; i++) {
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.8, 8, 8), new THREE.MeshStandardMaterial({ color: 0x1f5c66 }));
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.9, 9, 10), new THREE.MeshStandardMaterial({ color: 0x143e45 }));
     const angle = (i / 6) * Math.PI * 2;
-    t.position.set(Math.cos(angle) * 10, 2, Math.sin(angle) * 10 - 15);
+    t.position.set(Math.cos(angle) * 11, 2, Math.sin(angle) * 11 - 15);
     krakenMesh.add(t);
     tentaclesList.push(t);
   }
 
-  krakenMesh.position.set(0, 0, -20);
+  krakenMesh.position.set(0, 0, -22);
   bossGroup.add(krakenMesh);
 
   bossGroup.visible = false;
   scene.add(bossGroup);
+}
+
+export function startCinematicCam(targetPosition, lookAtPoint, durationSeconds = 3) {
+  cutsceneCam.active = true;
+  cutsceneCam.startPos.copy(camera.position);
+  cutsceneCam.targetPos.copy(targetPosition);
+  cutsceneCam.lookTarget.copy(lookAtPoint);
+  cutsceneCam.progress = 0;
+  cutsceneCam.duration = durationSeconds;
 }
 
 export function setupInput() {
@@ -235,12 +291,11 @@ export function setupInput() {
   });
 
   window.addEventListener('mousemove', e => {
-    if (document.pointerLockElement === canvas || document.pointerLockElement === document.body) {
+    if ((document.pointerLockElement === canvas || document.pointerLockElement === document.body) && state.phase !== 'cutscene') {
       player.rotation.y -= e.movementX * 0.003;
     }
   });
 
-  // Canvas Click Handler: Locks mouse & guarantees keyboard focus
   canvas.addEventListener('click', () => {
     window.focus();
     if (state.phase !== 'cutscene' && canvas.requestPointerLock) {
@@ -250,13 +305,21 @@ export function setupInput() {
   });
 }
 
+function triggerDamageEffect() {
+  const flash = document.getElementById('damage-flash');
+  if (flash) {
+    flash.style.opacity = '1';
+    setTimeout(() => { flash.style.opacity = '0'; }, 150);
+  }
+}
+
 function onStrike() {
   if (state.phase === 'cutscene') return;
 
   if (state.phase === 'tutorial' && dummyMesh) {
     if (player.position.distanceTo(dummyMesh.position) < 4) {
       state.dummyHits++;
-      dummyMesh.rotation.z = 0.15;
+      dummyMesh.rotation.z = 0.18;
       setTimeout(() => dummyMesh.rotation.z = 0, 120);
 
       if (state.dummyHits >= 5 && callbacks.onDummyComplete) {
@@ -264,14 +327,14 @@ function onStrike() {
       }
     }
   } else if (state.phase === 'arena' && enemyMesh) {
-    if (player.position.distanceTo(enemyMesh.position) < 4) {
-      enemyMesh.position.z -= 2;
-      if (enemyMesh.position.z < -25 && callbacks.onEnemyDefeated) {
+    if (player.position.distanceTo(enemyMesh.position) < 3.5) {
+      enemyMesh.position.z -= 4;
+      if (enemyMesh.position.z < -28 && callbacks.onEnemyDefeated) {
         callbacks.onEnemyDefeated();
       }
     }
   } else if (state.phase === 'boss' && krakenMesh) {
-    if (callbacks.onBossDefeated) {
+    if (player.position.distanceTo(krakenMesh.position) < 12 && callbacks.onBossDefeated) {
       callbacks.onBossDefeated();
     }
   }
@@ -284,13 +347,15 @@ export function setBossArenaVisibility(v) { bossGroup.visible = v; }
 
 export function spawnEnemy(lvl) {
   if (enemyMesh) {
-    enemyMesh.position.set((Math.random() - 0.5) * 10, 1, -6 - Math.random() * 5);
+    const angle = Math.random() * Math.PI * 2;
+    enemyMesh.position.set(player.position.x + Math.sin(angle) * 12, 0, player.position.z + Math.cos(angle) * 12);
   }
 }
 
 export function spawnShadowTentacle() {
   if (shadowTentacleMesh && callbacks.onTentacleSeen) {
-    shadowTentacleMesh.position.x = (Math.random() - 0.5) * 20;
+    shadowTentacleMesh.position.x = player.position.x + (Math.random() - 0.5) * 15;
+    shadowTentacleMesh.position.z = player.position.z - 10;
     callbacks.onTentacleSeen();
   }
 }
@@ -302,13 +367,13 @@ export function spawnKraken() {
 export function triggerStorm(duration) {
   let count = 0;
   const interval = setInterval(() => {
-    scene.fog.color.setHex(count % 2 === 0 ? 0x333b4d : 0x0e1118);
+    scene.fog.color.setHex(count % 2 === 0 ? 0x223344 : 0x0a0c10);
     count++;
-    if (count > 10) {
+    if (count > 12) {
       clearInterval(interval);
-      scene.fog.color.setHex(0x0e1118);
+      scene.fog.color.setHex(0x0a0c10);
     }
-  }, duration / 10);
+  }, duration / 12);
 }
 
 export function updateHUD() {
@@ -318,7 +383,7 @@ export function updateHUD() {
 
   if (zd) zd.textContent = state.phase === 'tutorial' ? 'ZONE: SHIP DECK' : `ZONE: ARENA LEVEL ${state.level} / 100`;
   if (pd) pd.textContent = 'PRIZE: $10,000,000';
-  if (hb) hb.style.width = `${state.hp}%`;
+  if (hb) hb.style.width = `${Math.max(0, state.hp)}%`;
 }
 
 export function resetGame() {
@@ -327,6 +392,8 @@ export function resetGame() {
   state.dummyHits = 0;
   player.position.set(0, 1.6, 5);
   player.rotation.set(0, 0, 0);
+  camera.position.set(0, 0, 0);
+  camera.rotation.set(0, 0, 0);
   updateHUD();
 }
 
@@ -340,26 +407,66 @@ function animate() {
   const delta = clock.getDelta();
   const time = clock.getElapsedTime();
 
-  if (lanternLight && shipGroup.visible) {
-    lanternLight.intensity = 3.2 + Math.sin(time * 12) * 0.3;
+  // Handle Animated Cutscene Camera Motion
+  if (state.phase === 'cutscene' && cutsceneCam.active) {
+    cutsceneCam.progress += delta / cutsceneCam.duration;
+    if (cutsceneCam.progress >= 1) {
+      cutsceneCam.progress = 1;
+      cutsceneCam.active = false;
+    }
+    camera.position.lerp(cutsceneCam.targetPos, 0.05);
+    camera.lookAt(cutsceneCam.lookTarget);
   }
 
-  // Active player movement logic
+  // Ship lantern sway
+  if (lanternLight && shipGroup.visible) {
+    lanternLight.intensity = 3.2 + Math.sin(time * 10) * 0.4;
+  }
+
+  // Writhing Shadow Tentacle
+  if (shadowTentacleMesh && dungeonGroup.visible) {
+    shadowTentacleMesh.rotation.z = Math.sin(time * 3) * 0.3 + 0.3;
+    shadowTentacleMesh.rotation.x = Math.cos(time * 2) * 0.2;
+  }
+
+  // Active Player Controls
   if (state.phase === 'tutorial' || state.phase === 'arena' || state.phase === 'boss') {
-    const speed = 5.0 * delta;
+    const speed = 5.2 * delta;
     if (keys['w'] || keys['arrowup']) player.translateZ(-speed);
     if (keys['s'] || keys['arrowdown']) player.translateZ(speed);
     if (keys['a'] || keys['arrowleft']) player.translateX(-speed);
     if (keys['d'] || keys['arrowright']) player.translateX(speed);
-    
 
     if (state.phase === 'tutorial') {
       player.position.x = Math.max(-5.5, Math.min(5.5, player.position.x));
       player.position.z = Math.max(-8.5, Math.min(8.5, player.position.z));
     }
 
+    // ARENA ENEMY CHASE & ATTACK AI
+    if (state.phase === 'arena' && enemyMesh && dungeonGroup.visible) {
+      enemyMesh.lookAt(player.position.x, enemyMesh.position.y, player.position.z);
+      
+      const distToPlayer = enemyMesh.position.distanceTo(player.position);
+      if (distToPlayer > 1.2) {
+        enemyMesh.translateZ(2.8 * delta); // Enemy stalks towards player
+      } else {
+        // ENEMY ATTACKING PLAYER
+        state.hp -= 20 * delta; // Deal continuous damage when close
+        triggerDamageEffect();
+        updateHUD();
+
+        if (state.hp <= 0 && callbacks.onPlayerDead) {
+          callbacks.onPlayerDead();
+        }
+      }
+    }
+
+    // BOSS ANIMATION
     if (state.phase === 'boss' && krakenMesh) {
-      krakenMesh.position.y = Math.sin(time * 2) * 0.5;
+      krakenMesh.position.y = Math.sin(time * 2) * 0.6;
+      tentaclesList.forEach((t, idx) => {
+        t.rotation.x = Math.sin(time * 3 + idx) * 0.4;
+      });
     }
   }
 
