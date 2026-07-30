@@ -7,7 +7,7 @@ export const state = {
   phase: 'start',
   level: 1,
   hp: 100,
-  battery: 100,
+  battery: 100, // Kept for UI compatibility, infinite
   dummyHits: 0,
   tutorialComplete: false,
   flashlightOn: false
@@ -70,6 +70,9 @@ let livingWallState = {
   rebuilding: false
 };
 
+// Camera Pitch Control
+let pitch = 0;
+
 // ==========================================
 // INITIALIZATION & ENGINE SETUP
 // ==========================================
@@ -110,6 +113,7 @@ function setupPlayerAndFlashlight() {
   scene.add(groups.player);
 
   camera.position.set(0, 0, 0);
+  camera.rotation.set(0, 0, 0);
   groups.player.add(camera);
 
   flashlight = new THREE.SpotLight(0xfff5e0, 0, 35, Math.PI / 5, 0.4, 1);
@@ -438,7 +442,7 @@ function spawnMapPickups(amount = 3) {
 // COLLISIONS & INPUT HANDLING
 // ==========================================
 function checkCollisions(newPosition) {
-  if (!groups.dungeon.visible) return false; // Only collide when maze is active
+  if (!groups.dungeon.visible) return false;
 
   const playerRadius = 0.4;
   const playerBox = new THREE.Box3(
@@ -460,13 +464,8 @@ export function setupInput() {
     keys[k] = true;
 
     if (k === 'f') {
-      if (state.battery > 0) {
-        state.flashlightOn = !state.flashlightOn;
-        flashlight.intensity = state.flashlightOn ? 16 : 0;
-      } else {
-        state.flashlightOn = false;
-        flashlight.intensity = 0;
-      }
+      state.flashlightOn = !state.flashlightOn;
+      flashlight.intensity = state.flashlightOn ? 16 : 0;
       updateHUD();
     }
 
@@ -483,8 +482,10 @@ export function setupInput() {
   window.addEventListener('mousemove', e => {
     if (document.pointerLockElement === canvas && state.phase !== 'cutscene') {
       groups.player.rotation.y -= e.movementX * 0.0025;
-      camera.rotation.x -= e.movementY * 0.0025;
-      camera.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, camera.rotation.x));
+      
+      pitch -= e.movementY * 0.0025;
+      pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, pitch));
+      camera.rotation.set(pitch, 0, 0);
     }
   });
 
@@ -586,7 +587,7 @@ export function updateHUD() {
       : `10,000,000 - LEVEL ${state.level} / 100`;
   }
   if (hb) hb.style.width = `${Math.max(0, state.hp)}%`;
-  if (flStatus) flStatus.textContent = `${state.flashlightOn ? 'ON' : 'OFF'} (${Math.round(state.battery)}%)`;
+  if (flStatus) flStatus.textContent = `${state.flashlightOn ? 'ON' : 'OFF'} (∞)`;
 }
 
 export function resetGame() {
@@ -594,7 +595,9 @@ export function resetGame() {
   state.battery = 100;
   state.level = 1;
   state.dummyHits = 0;
+  pitch = 0;
   groups.player.position.set(0, 1.6, 5);
+  groups.player.rotation.set(0, 0, 0);
   camera.position.set(0, 0, 0);
   camera.rotation.set(0, 0, 0);
   updateHUD();
@@ -611,17 +614,6 @@ function onResize() {
 // ==========================================
 function animate() {
   const delta = clock.getDelta();
-
-  // Flashlight Drain Mechanics
-  if (state.flashlightOn) {
-    state.battery -= delta * 3.5;
-    if (state.battery <= 0) {
-      state.battery = 0;
-      state.flashlightOn = false;
-      flashlight.intensity = 0;
-    }
-    updateHUD();
-  }
 
   // 1. Enemy Behaviors & Dynamic AI
   if (state.phase === 'arena' && groups.dungeon.visible) {
@@ -692,8 +684,6 @@ function animate() {
       if (groups.player.position.distanceTo(pickup.mesh.position) < 1.2) {
         if (pickup.type === 'health') {
           state.hp = Math.min(100, state.hp + 25);
-        } else if (pickup.type === 'battery') {
-          state.battery = 100;
         }
         updateHUD();
         groups.dungeon.remove(pickup.mesh);
