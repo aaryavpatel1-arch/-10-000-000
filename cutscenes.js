@@ -178,7 +178,7 @@ function playGameOverCutscene() {
 function onTentacleSeen() {
   const hint = document.getElementById('top-hint');
   if (hint) {
-    hint.textContent = 'A TENTACLE SLITHERED INTO THE WALL!';
+    hint.textContent = 'SOMETHING SLITHERED AROUND THE CORNER!';
     setTimeout(() => {
       if (hint) hint.textContent = 'WASD to MOVE | PRESS F FOR FLASHLIGHT';
     }, 3500);
