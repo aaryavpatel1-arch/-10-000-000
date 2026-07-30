@@ -5,7 +5,7 @@ import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 // ==========================================
 export const state = {
   phase: 'start',
-  level: 0,
+  level: 1,
   hp: 100,
   battery: 100,
   dummyHits: 0,
@@ -96,6 +96,7 @@ export function initEngine() {
   setupDungeonMaze();
   setupBossArena();
 
+  setupInput();
   window.addEventListener('resize', onResize);
   animate();
 }
@@ -176,6 +177,8 @@ function setupShipDeck() {
 
 function setupDungeonMaze() {
   groups.dungeon = new THREE.Group();
+  colliders.length = 0; // Reset colliders list
+  
   const wallMat = new THREE.MeshStandardMaterial({ color: 0x181a20, roughness: 0.9 });
   const floorMat = new THREE.MeshStandardMaterial({ color: 0x0c0e12, roughness: 0.95 });
 
@@ -435,6 +438,8 @@ function spawnMapPickups(amount = 3) {
 // COLLISIONS & INPUT HANDLING
 // ==========================================
 function checkCollisions(newPosition) {
+  if (!groups.dungeon.visible) return false; // Only collide when maze is active
+
   const playerRadius = 0.4;
   const playerBox = new THREE.Box3(
     new THREE.Vector3(newPosition.x - playerRadius, 0, newPosition.z - playerRadius),
@@ -575,7 +580,11 @@ export function updateHUD() {
   const hb = document.getElementById('health-bar');
   const flStatus = document.getElementById('fl-status');
 
-  if (zd) zd.textContent = state.phase === 'tutorial' ? 'ZONE: SHIP DECK' : `ZONE: ARENA LEVEL ${state.level} / 100`;
+  if (zd) {
+    zd.textContent = state.phase === 'tutorial' 
+      ? '10,000,000 - SHIP DECK' 
+      : `10,000,000 - LEVEL ${state.level} / 100`;
+  }
   if (hb) hb.style.width = `${Math.max(0, state.hp)}%`;
   if (flStatus) flStatus.textContent = `${state.flashlightOn ? 'ON' : 'OFF'} (${Math.round(state.battery)}%)`;
 }
@@ -583,7 +592,7 @@ export function updateHUD() {
 export function resetGame() {
   state.hp = 100;
   state.battery = 100;
-  state.level = 0;
+  state.level = 1;
   state.dummyHits = 0;
   groups.player.position.set(0, 1.6, 5);
   camera.position.set(0, 0, 0);
@@ -775,7 +784,7 @@ function animate() {
   }
 
   // 5. FPS Movement
-  if (['tutorial', 'arena', 'boss'].includes(state.phase)) {
+  if (['start', 'tutorial', 'arena', 'boss'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
 
