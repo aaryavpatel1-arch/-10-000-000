@@ -2,8 +2,10 @@ export const state = {
   phase: 'tutorial',
   level: 1,
   hp: 100,
+  maxHp: 100,
   dummyHits: 0,
   choresDone: 0,
+  totalChoresNeeded: 5, // Expanded deck duties!
   flashlightOn: false
 };
 
@@ -25,20 +27,22 @@ const player = {
   dirY: 0,
   planeX: 0,
   planeY: 0.66,
-  moveSpeed: 3.2,
-  rotSpeed: 2.5
+  moveSpeed: 3.5,
+  rotSpeed: 2.8,
+  swingAnim: 0
 };
 
 const keys = { w: false, s: false, a: false, d: false, left: false, right: false };
 
-let mapWidth = 16;
-let mapHeight = 16;
+let mapWidth = 10;
+let mapHeight = 10;
 let worldMap = [];
 
 let entities = [];
 let ghostCaptain = { x: -1, y: -1, visible: false, timer: 0 };
 let flashlightToggles = [];
 let lastDamageTime = 0;
+let promptText = "";
 
 export function initEngine() {
   canvas = document.getElementById('gl-canvas');
@@ -63,28 +67,44 @@ function resizeCanvas() {
 
 function loadMapForPhase() {
   if (state.phase === 'tutorial') {
+    // Ship Deck Layout (Wooden Planks, Cabin Walls)
     worldMap = [
-      [1,1,1,1,1,1,1,1],
-      [1,0,0,0,0,0,0,1],
-      [1,0,0,0,0,0,0,1],
-      [1,0,0,0,0,0,0,1],
-      [1,0,0,0,0,0,0,1],
-      [1,1,1,1,1,1,1,1]
+      [1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1]
     ];
-    mapWidth = 8;
-    mapHeight = 6;
+    mapWidth = 10;
+    mapHeight = 7;
     player.x = 2.5;
-    player.y = 2.5;
+    player.y = 3.5;
     
+    // Detailed Pre-Storm Deck Environment with NPCs & Chores
     entities = [
-      { x: 5.5, y: 2.5, type: 'dummy', hp: 5 },
-      { x: 3.5, y: 4.5, type: 'crate' },
-      { x: 4.5, y: 4.5, type: 'crate' },
-      { x: 5.5, y: 4.5, type: 'crate' }
+      // NPCs
+      { x: 7.5, y: 1.8, type: 'captain', name: 'Captain Vance' },
+      { x: 2.5, y: 1.8, type: 'crew', name: 'Deckhand Barnaby' },
+
+      // Training Dummy
+      { x: 7.5, y: 3.5, type: 'dummy', hp: 5 },
+
+      // Deck Duties / Chores
+      { x: 4.5, y: 5.2, type: 'crate', name: 'Cargo Crate' },
+      { x: 5.5, y: 5.2, type: 'crate', name: 'Cargo Crate' },
+      { x: 3.5, y: 2.2, type: 'barrel', name: 'Loose Oil Barrel' },
+      { x: 6.5, y: 5.2, type: 'mop', name: 'Deck Spill' },
+      { x: 8.2, y: 5.0, type: 'rope', name: 'Tangled Rope' }
     ];
   } else {
-    mapWidth = 16;
-    mapHeight = 16;
+    // Dungeon Maze Map (Scaling with level)
+    mapWidth = Math.min(22, 10 + Math.floor(state.level * 1.2));
+    mapHeight = Math.min(22, 10 + Math.floor(state.level * 1.2));
+    if (mapWidth % 2 === 0) mapWidth++;
+    if (mapHeight % 2 === 0) mapHeight++;
+
     generateMaze(mapWidth, mapHeight);
   }
 }
@@ -107,18 +127,29 @@ function generateMaze(w, h) {
 
   carve(2, 2);
   worldMap[2][2] = 0;
-  worldMap[h - 3][w - 3] = 2;
+  worldMap[h - 3][w - 3] = 2; // Ladder Exit
 
   spawnEnemies();
 }
 
 function spawnEnemies() {
   entities = [];
-  for (let i = 0; i < Math.min(state.level + 1, 4); i++) {
+  const enemyCount = Math.min(12, 1 + Math.floor(state.level * 0.9));
+  const baseSpeed = 0.8 + Math.min(1.8, state.level * 0.15);
+  const baseHp = 30 + (state.level * 10);
+
+  for (let i = 0; i < enemyCount; i++) {
     let ex = Math.floor(Math.random() * (mapWidth - 4)) + 2;
     let ey = Math.floor(Math.random() * (mapHeight - 4)) + 2;
-    if (worldMap[ey][ex] === 0) {
-      entities.push({ x: ex + 0.5, y: ey + 0.5, type: 'stalker', hp: 40, speed: 1.2 });
+    
+    if (worldMap[ey] && worldMap[ey][ex] === 0 && (ex !== 2 || ey !== 2)) {
+      entities.push({
+        x: ex + 0.5,
+        y: ey + 0.5,
+        type: 'stalker',
+        hp: baseHp,
+        speed: baseSpeed
+      });
     }
   }
 }
@@ -170,6 +201,7 @@ function setupInput() {
 
   canvas.addEventListener('click', () => {
     if (canvas.requestPointerLock) canvas.requestPointerLock();
+    player.swingAnim = 1.0;
     handleAttack();
   });
 }
@@ -193,16 +225,31 @@ function triggerGhostCaptain() {
 }
 
 function handleInteract() {
+  let interacted = false;
+
   if (state.phase === 'tutorial') {
     entities.forEach((ent, idx) => {
-      if (ent.type === 'crate') {
+      if (['crate', 'barrel', 'mop', 'rope'].includes(ent.type)) {
         let dist = Math.hypot(player.x - ent.x, player.y - ent.y);
-        if (dist < 2.0) {
+        if (dist < 2.0 && !interacted) {
+          interacted = true;
           entities.splice(idx, 1);
           state.choresDone++;
-          if (state.choresDone >= 3 && callbacks.onChoresComplete) {
+          showBanner(`Task completed: Cleaned ${ent.name}! (${state.choresDone}/${state.totalChoresNeeded})`, 2500);
+
+          if (state.choresDone >= state.totalChoresNeeded && callbacks.onChoresComplete) {
             callbacks.onChoresComplete();
           }
+        }
+      } else if (ent.type === 'crew') {
+        let dist = Math.hypot(player.x - ent.x, player.y - ent.y);
+        if (dist < 2.2) {
+          showBanner("Barnaby: 'Storm clouds are brewing on the horizon, lad! Best hurry!'", 3500);
+        }
+      } else if (ent.type === 'captain') {
+        let dist = Math.hypot(player.x - ent.x, player.y - ent.y);
+        if (dist < 2.2) {
+          showBanner("Captain Vance: 'Keep at it, sailor! Secure the deck before the tempest strikes!'", 3500);
         }
       }
     });
@@ -211,10 +258,11 @@ function handleInteract() {
     let pGridY = Math.floor(player.y);
     if (worldMap[pGridY] && worldMap[pGridY][pGridX] === 2) {
       state.level++;
-      showBanner(`Advanced to Level ${state.level}!`, 3000);
+      state.hp = Math.min(state.maxHp, state.hp + 30);
+      showBanner(`Ascended to Level ${state.level}! Enemies grow fiercer!`, 3000);
       player.x = 2.5;
       player.y = 2.5;
-      generateMaze(mapWidth, mapHeight);
+      loadMapForPhase();
       updateHUD();
     }
   }
@@ -226,11 +274,12 @@ function handleAttack() {
     if (dist < 2.5) {
       if (ent.type === 'dummy') {
         state.dummyHits++;
+        showBanner(`Hit the training dummy! (${state.dummyHits}/5)`, 1500);
         if (state.dummyHits >= 5 && callbacks.onDummyComplete) {
           callbacks.onDummyComplete();
         }
       } else if (ent.type === 'stalker') {
-        ent.hp -= 25;
+        ent.hp -= 35;
         if (ent.hp <= 0) entities.splice(idx, 1);
       }
     }
@@ -259,6 +308,8 @@ export function showBanner(msg, duration = 3000) {
 function gameLoop(now) {
   let dt = (now - lastTime) / 1000;
   lastTime = now;
+
+  if (player.swingAnim > 0) player.swingAnim = Math.max(0, player.swingAnim - dt * 4);
 
   updatePlayer(dt);
   updateEntities(dt);
@@ -290,26 +341,40 @@ function updatePlayer(dt) {
 
 function updateEntities(dt) {
   let now = Date.now();
+  const attackDamage = Math.min(30, 5 + state.level * 2);
+  promptText = "";
 
-  entities.forEach(enemy => {
-    if (enemy.type !== 'stalker') return;
+  entities.forEach(ent => {
+    let dist = Math.hypot(player.x - ent.x, player.y - ent.y);
 
-    let dx = player.x - enemy.x;
-    let dy = player.y - enemy.y;
-    let dist = Math.hypot(dx, dy);
+    // Interactive Prompts
+    if (dist < 2.2) {
+      if (['crate', 'barrel', 'mop', 'rope'].includes(ent.type)) {
+        promptText = `[E] Clean ${ent.name}`;
+      } else if (ent.type === 'dummy') {
+        promptText = `[LEFT CLICK] Attack Training Dummy`;
+      } else if (ent.type === 'captain' || ent.type === 'crew') {
+        promptText = `[E] Talk to ${ent.name}`;
+      }
+    }
+
+    if (ent.type !== 'stalker') return;
+
+    let dx = player.x - ent.x;
+    let dy = player.y - ent.y;
 
     if (dist > 0.6) {
-      enemy.x += (dx / dist) * enemy.speed * dt;
-      enemy.y += (dy / dist) * enemy.speed * dt;
-    } else if (now - lastDamageTime > 1500) {
-      state.hp -= 12;
+      ent.x += (dx / dist) * ent.speed * dt;
+      ent.y += (dy / dist) * ent.speed * dt;
+    } else if (now - lastDamageTime > 1200) {
+      state.hp -= attackDamage;
       lastDamageTime = now;
       updateHUD();
-      showBanner("THE ENTITY SLASHED YOU!", 1500);
+      showBanner(`THE ENTITY SLASHED YOU! (-${attackDamage} HP)`, 1200);
 
       if (state.hp <= 0) {
         showBanner("YOU DIED...", 5000);
-        setTimeout(() => location.reload(), 3000);
+        setTimeout(() => location.reload(), 2500);
       }
     }
   });
@@ -319,15 +384,25 @@ function updateEntities(dt) {
   }
 }
 
+// RETRO RAYCASTING RENDER ENGINE
 function renderDoomRaycaster() {
   if (!ctx) return;
 
   const w = canvas.width;
   const h = canvas.height;
 
-  ctx.fillStyle = state.flashlightOn ? '#1a222d' : '#05070a';
+  // Sky / Atmospheric Ceiling
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, h / 2);
+  skyGrad.addColorStop(0, '#020305');
+  skyGrad.addColorStop(1, state.phase === 'tutorial' ? '#1c2838' : (state.flashlightOn ? '#1a2332' : '#080c14'));
+  ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, w, h / 2);
-  ctx.fillStyle = state.phase === 'tutorial' ? '#4a2c11' : '#11141a';
+
+  // Textured Floor / Deck Planks
+  const floorGrad = ctx.createLinearGradient(0, h / 2, 0, h);
+  floorGrad.addColorStop(0, state.phase === 'tutorial' ? '#321f0e' : '#0d1117');
+  floorGrad.addColorStop(1, state.phase === 'tutorial' ? '#6e451f' : '#1b2230');
+  ctx.fillStyle = floorGrad;
   ctx.fillRect(0, h / 2, w, h / 2);
 
   let zBuffer = new Array(w);
@@ -347,7 +422,7 @@ function renderDoomRaycaster() {
     let sideDistX, sideDistY;
 
     if (rayDirX < 0) { stepX = -1; sideDistX = (player.x - mapX) * deltaDistX; }
-    else { stepX = 1; sideDistX = (mapX + 1.0 - player.x) * deltaDistX; }
+    else { stepX = 1; stepX = 1; sideDistX = (mapX + 1.0 - player.x) * deltaDistX; }
 
     if (rayDirY < 0) { stepY = -1; sideDistY = (player.y - mapY) * deltaDistY; }
     else { stepY = 1; sideDistY = (mapY + 1.0 - player.y) * deltaDistY; }
@@ -376,29 +451,31 @@ function renderDoomRaycaster() {
     let wallX = side === 0 ? player.y + perpWallDist * rayDirY : player.x + perpWallDist * rayDirX;
     wallX -= Math.floor(wallX);
 
-    let light = Math.min(1, 1.2 / perpWallDist);
-    if (!state.flashlightOn && state.phase !== 'tutorial') light *= 0.25;
+    let light = Math.min(1, 1.8 / (perpWallDist * 0.8));
+    if (!state.flashlightOn && state.phase !== 'tutorial') light *= 0.2;
 
-    let isMortar = (Math.floor(wallX * 16) % 4 === 0) || (Math.floor((drawStart / h) * 32) % 4 === 0);
+    let isPlank = (Math.floor(wallX * 16) % 4 === 0) || (Math.floor((drawStart / h) * 32) % 4 === 0);
 
     if (hit === 1) {
-      let r = state.phase === 'tutorial' ? 120 : (side === 1 ? 40 : 60);
-      let g = state.phase === 'tutorial' ? 70 : (side === 1 ? 50 : 75);
-      let b = state.phase === 'tutorial' ? 30 : (side === 1 ? 70 : 100);
+      let r = state.phase === 'tutorial' ? 140 : (side === 1 ? 45 : 70);
+      let g = state.phase === 'tutorial' ? 85 : (side === 1 ? 55 : 85);
+      let b = state.phase === 'tutorial' ? 40 : (side === 1 ? 80 : 120);
 
-      if (isMortar) { r *= 0.5; g *= 0.5; b *= 0.5; }
+      if (isPlank) { r *= 0.6; g *= 0.6; b *= 0.6; }
 
-      ctx.fillStyle = `rgb(${r * light}, ${g * light}, ${b * light})`;
-    } else if (hit === 2) {
-      ctx.fillStyle = `rgb(${200 * light}, ${140 * light}, ${40 * light})`;
+      ctx.fillStyle = `rgb(${Math.floor(r * light)}, ${Math.floor(g * light)}, ${Math.floor(b * light)})`;
+    } else if (hit === 2) { // Ladder Exit
+      ctx.fillStyle = `rgb(${Math.floor(220 * light)}, ${Math.floor(160 * light)}, ${Math.floor(40 * light)})`;
     }
 
     ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
   }
 
   renderSprites(w, h, zBuffer);
+  renderOverlay(w, h);
 }
 
+// PROCEDURAL SPRITE RENDERER FOR DETAILED OBJECTS & NPCS
 function renderSprites(w, h, zBuffer) {
   let spriteList = [...entities];
   if (ghostCaptain.visible) spriteList.push({ ...ghostCaptain, type: 'ghost' });
@@ -426,21 +503,195 @@ function renderSprites(w, h, zBuffer) {
       let drawStartX = Math.floor(-spriteWidth / 2 + spriteScreenX);
 
       if (spriteScreenX > 0 && spriteScreenX < w && transformY < zBuffer[spriteScreenX]) {
-        if (sprite.type === 'dummy') ctx.fillStyle = '#b5835a';
-        else if (sprite.type === 'crate') ctx.fillStyle = '#8b5a2b';
-        else if (sprite.type === 'ghost') ctx.fillStyle = 'rgba(34, 255, 204, 0.8)';
-        else ctx.fillStyle = 'rgb(180, 20, 20)';
-
-        ctx.fillRect(drawStartX, drawStartY, spriteWidth * 0.4, spriteHeight * 0.8);
-
-        if (sprite.type === 'stalker' || sprite.type === 'ghost') {
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(drawStartX + spriteWidth * 0.1, drawStartY + spriteHeight * 0.2, 5, 5);
-          ctx.fillRect(drawStartX + spriteWidth * 0.25, drawStartY + spriteHeight * 0.2, 5, 5);
-        }
+        drawDetailedSprite(sprite.type, drawStartX, drawStartY, spriteWidth, spriteHeight, transformY);
       }
     }
   });
+}
+
+function drawDetailedSprite(type, x, y, width, height, depth) {
+  const alpha = Math.min(1, 2.8 / depth);
+  ctx.save();
+
+  if (type === 'dummy') {
+    // Training Dummy (Wooden Post with Target Rings & Padded Arms)
+    ctx.fillStyle = `rgba(139, 90, 43, ${alpha})`;
+    ctx.fillRect(x + width * 0.4, y + height * 0.1, width * 0.2, height * 0.8); // Center pole
+    ctx.fillRect(x + width * 0.15, y + height * 0.35, width * 0.7, height * 0.12); // Cross arms
+
+    // Target Chest
+    ctx.fillStyle = `rgba(220, 50, 50, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.4, width * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.4, width * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Head Straw Ball
+    ctx.fillStyle = `rgba(210, 180, 120, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.18, width * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (type === 'crate') {
+    // Cargo Wooden Crate with Metallic Corner Braces & Cross Beam
+    ctx.fillStyle = `rgba(120, 75, 35, ${alpha})`;
+    ctx.fillRect(x + width * 0.1, y + height * 0.3, width * 0.8, height * 0.6);
+
+    ctx.strokeStyle = `rgba(60, 35, 15, ${alpha})`;
+    ctx.lineWidth = Math.max(1, width * 0.04);
+    ctx.strokeRect(x + width * 0.1, y + height * 0.3, width * 0.8, height * 0.6);
+
+    // Cross Beams
+    ctx.beginPath();
+    ctx.moveTo(x + width * 0.1, y + height * 0.3);
+    ctx.lineTo(x + width * 0.9, y + height * 0.9);
+    ctx.moveTo(x + width * 0.9, y + height * 0.3);
+    ctx.lineTo(x + width * 0.1, y + height * 0.9);
+    ctx.stroke();
+
+  } else if (type === 'barrel') {
+    // Oil Barrel with Steel Rings
+    ctx.fillStyle = `rgba(40, 45, 55, ${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(x + width * 0.5, y + height * 0.6, width * 0.3, height * 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(180, 190, 200, ${alpha})`;
+    ctx.fillRect(x + width * 0.22, y + height * 0.4, width * 0.56, height * 0.05);
+    ctx.fillRect(x + width * 0.22, y + height * 0.75, width * 0.56, height * 0.05);
+
+  } else if (type === 'mop') {
+    // Sea Spill & Mop
+    ctx.fillStyle = `rgba(60, 120, 180, ${alpha * 0.6})`;
+    ctx.beginPath();
+    ctx.ellipse(x + width * 0.5, y + height * 0.8, width * 0.35, height * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = `rgba(200, 160, 100, ${alpha})`;
+    ctx.lineWidth = Math.max(2, width * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(x + width * 0.3, y + height * 0.2);
+    ctx.lineTo(x + width * 0.5, y + height * 0.8);
+    ctx.stroke();
+
+  } else if (type === 'rope') {
+    // Coiled Rope
+    ctx.strokeStyle = `rgba(190, 150, 90, ${alpha})`;
+    ctx.lineWidth = Math.max(2, width * 0.06);
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.75, width * 0.25, 0, Math.PI * 2);
+    ctx.arc(x + width * 0.5, y + height * 0.75, width * 0.15, 0, Math.PI * 2);
+    ctx.stroke();
+
+  } else if (type === 'captain') {
+    // Captain Vance NPC (Coat, Captain Hat, Beard)
+    ctx.fillStyle = `rgba(15, 30, 60, ${alpha})`; // Blue Coat
+    ctx.fillRect(x + width * 0.25, y + height * 0.3, width * 0.5, height * 0.6);
+
+    ctx.fillStyle = `rgba(235, 190, 150, ${alpha})`; // Face
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.22, width * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(200, 200, 200, ${alpha})`; // Beard
+    ctx.fillRect(x + width * 0.4, y + height * 0.25, width * 0.2, height * 0.1);
+
+    ctx.fillStyle = `rgba(10, 15, 30, ${alpha})`; // Captain Hat
+    ctx.fillRect(x + width * 0.25, y + height * 0.08, width * 0.5, height * 0.08);
+    ctx.fillRect(x + width * 0.2, y + height * 0.14, width * 0.6, height * 0.04);
+
+  } else if (type === 'crew') {
+    // Crewmate Barnaby NPC (Vest & Bandana)
+    ctx.fillStyle = `rgba(160, 40, 40, ${alpha})`; // Red Vest
+    ctx.fillRect(x + width * 0.28, y + height * 0.32, width * 0.44, height * 0.58);
+
+    ctx.fillStyle = `rgba(235, 190, 150, ${alpha})`; // Face
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.24, width * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(20, 20, 20, ${alpha})`; // Bandana
+    ctx.beginPath();
+    ctx.arc(x + width * 0.5, y + height * 0.18, width * 0.15, Math.PI, 0);
+    ctx.fill();
+
+  } else if (type === 'stalker') {
+    // Horror Stalker Sprite (Demon Silhouette with Red Glowing Eyes)
+    ctx.fillStyle = `rgba(15, 10, 20, ${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(x + width * 0.5, y + height * 0.45, width * 0.25, height * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Glowing Crimson Eyes
+    ctx.fillStyle = `rgba(255, 30, 30, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(x + width * 0.42, y + height * 0.25, width * 0.05, 0, Math.PI * 2);
+    ctx.arc(x + width * 0.58, y + height * 0.25, width * 0.05, 0, Math.PI * 2);
+    ctx.fill();
+
+  } else if (type === 'ghost') {
+    // Spectral Ghost Captain
+    ctx.fillStyle = `rgba(34, 255, 204, ${alpha * 0.75})`;
+    ctx.beginPath();
+    ctx.ellipse(x + width * 0.5, y + height * 0.45, width * 0.3, height * 0.42, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `#ffffff`;
+    ctx.beginPath();
+    ctx.arc(x + width * 0.4, y + height * 0.28, width * 0.06, 0, Math.PI * 2);
+    ctx.arc(x + width * 0.6, y + height * 0.28, width * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// OVERLAY, WEAPON HAND & PROMPTS
+function renderOverlay(w, h) {
+  // Flashlight Vignette
+  if (state.flashlightOn) {
+    const vig = ctx.createRadialGradient(w / 2, h / 2, h * 0.2, w / 2, h / 2, h * 0.75);
+    vig.addColorStop(0, 'rgba(255, 255, 200, 0.08)');
+    vig.addColorStop(1, 'rgba(0, 0, 0, 0.75)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  // Crosshair
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(w / 2 - 8, h / 2);
+  ctx.lineTo(w / 2 + 8, h / 2);
+  ctx.moveTo(w / 2, h / 2 - 8);
+  ctx.lineTo(w / 2, h / 2 + 8);
+  ctx.stroke();
+
+  // Draw Retro Doom Fist / Club Weapon at Bottom Screen
+  const swingOffset = Math.sin(player.swingAnim * Math.PI) * 40;
+  ctx.fillStyle = '#8b5a2b'; // Wooden Club
+  ctx.fillRect(w / 2 + 20 - swingOffset, h - 160 + swingOffset, 45, 180);
+  ctx.fillStyle = '#d2b48c'; // Hand Grip
+  ctx.beginPath();
+  ctx.arc(w / 2 + 42 - swingOffset, h - 20 + swingOffset, 30, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Floating Context Interaction Prompt
+  if (promptText) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(w / 2 - 140, h / 2 + 40, 280, 32);
+    ctx.strokeStyle = '#00ffcc';
+    ctx.strokeRect(w / 2 - 140, h / 2 + 40, 280, 32);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '15px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(promptText, w / 2, h / 2 + 61);
+  }
 }
 
 export function setCaptainSpeech(text) {
