@@ -3,14 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>2.5D Doom Style Horror Maze</title>
+  <title>2.5D Retro Horror Engine</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
     body {
       margin: 0;
+      padding: 0;
       overflow: hidden;
-      background: #000;
-      font-family: monospace;
-      color: white;
+      background-color: #000;
+      font-family: 'Courier New', Courier, monospace;
+      color: #ffffff;
+      user-select: none;
     }
     #gl-canvas {
       width: 100vw;
@@ -19,41 +24,56 @@
     }
     #hud {
       position: absolute;
-      top: 10px;
-      left: 10px;
+      top: 15px;
+      left: 15px;
       pointer-events: none;
+      z-index: 10;
+    }
+    #zone-display {
+      font-size: 18px;
+      font-weight: bold;
+      color: #00ffcc;
+      margin-bottom: 5px;
     }
     #health-bar-container {
       width: 200px;
       height: 16px;
-      background: #333;
+      background: #222;
       border: 2px solid #fff;
+      margin-top: 8px;
     }
     #health-bar {
       width: 100%;
       height: 100%;
       background: #00ffcc;
+      transition: width 0.2s ease;
     }
     #banner-message {
       position: absolute;
-      top: 20%;
+      top: 18%;
       width: 100%;
       text-align: center;
-      font-size: 24px;
-      background: rgba(0,0,0,0.7);
-      padding: 10px 0;
+      font-size: 22px;
+      font-weight: bold;
+      background: rgba(0, 0, 0, 0.85);
+      color: #ff3333;
+      padding: 12px 0;
       display: none;
+      z-index: 20;
     }
     #captain-bubble {
       position: absolute;
-      bottom: 50px;
+      bottom: 40px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(0, 0, 0, 0.8);
-      border: 1px solid #fff;
-      padding: 10px 20px;
-      font-size: 18px;
+      background: rgba(10, 15, 25, 0.9);
+      border: 2px solid #00ffcc;
+      padding: 12px 24px;
+      font-size: 16px;
+      color: #ffffff;
+      border-radius: 4px;
       display: none;
+      z-index: 20;
     }
   </style>
 </head>
@@ -63,7 +83,7 @@
 
   <div id="hud">
     <div id="zone-display">SHIP DECK</div>
-    <div>FLASHLIGHT: <span id="fl-status">OFF</span> (Press F)</div>
+    <div>FLASHLIGHT: <span id="fl-status">OFF</span> [F]</div>
     <div id="health-bar-container"><div id="health-bar"></div></div>
   </div>
 
