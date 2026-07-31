@@ -1,192 +1,65 @@
-import {
-  initEngine, setupInput, state, callbacks,
-  setPhase, setShipVisibility, setDungeonVisibility, setBossArenaVisibility,
-  spawnEnemy, spawnKraken, triggerStorm, startCinematicSequence,
-  updateHUD, resetGame, triggerScreenShake
+import { 
+  initEngine, 
+  state, 
+  callbacks, 
+  triggerStorm, 
+  setPhase, 
+  setShipVisibility, 
+  setDungeonVisibility, 
+  spawnEnemy,
+  updateHUD,
+  startCinematicSequence,
+  setCaptainSpeech
 } from './game.js';
 
-let hud, startScreen;
+export function showBannerHint(text, duration = 3000) {
+  const banner = document.getElementById('banner-message');
+  if (banner) {
+    banner.textContent = text;
+    banner.style.display = 'block';
+    if (duration > 0) {
+      setTimeout(() => { banner.style.display = 'none'; }, duration);
+    }
+  }
+}
 
-export function initGame() {
-  hud = document.getElementById('hud');
-  startScreen = document.getElementById('start-screen');
-
+window.addEventListener('DOMContentLoaded', () => {
   initEngine();
-  setupInput();
+  updateHUD();
 
-  callbacks.onDummyComplete = playShipWreckCutscene;
-  callbacks.onEnemyDefeated = onEnemyDefeated;
-  callbacks.onPlayerDead = playGameOverCutscene;
-  callbacks.onTentacleSeen = onTentacleSeen;
-  callbacks.onBossDefeated = playVictoryCutscene;
-
-  if (startScreen) startScreen.style.display = 'none';
-  if (hud) hud.classList.remove('hidden');
-
-  playIntroCutscene();
-}
-
-function playIntroCutscene() {
-  setShipVisibility(true);
-  setDungeonVisibility(false);
-  setBossArenaVisibility(false);
-
-  showBanner("TUTORIAL: SHIP DECK", "STRIKE THE DUMMY 5 TIMES TO PREPARE");
-
+  // 1. INTRO CUTSCENE PLAYS FIRST
   startCinematicSequence([
-    {
-      pos: { x: 0, y: 1.8, z: 2 },
-      look: { x: 0, y: 1.5, z: -3 },
-      duration: 2.0
-    },
-    {
-      pos: { x: 0, y: 0, z: 0 },
-      look: { x: 0, y: 0, z: -5 },
-      duration: 1.0
-    }
+    { pos: { x: 0, y: 8, z: 14 }, look: { x: 0, y: 1.6, z: 0 }, duration: 2.5 },
+    { pos: { x: -2, y: 3, z: 3 }, look: { x: -2, y: 2, z: -1 }, duration: 2.0 },
+    { pos: { x: 0, y: 1.6, z: 5 }, look: { x: 0, y: 1.6, z: 0 }, duration: 1.5 }
   ], () => {
+    // Cutscene finishes -> Start training course
     setPhase('tutorial');
-    updateHUD();
+    setCaptainSpeech("Welcome aboard, boy! Go hit that dummy 5 times!");
+    showBannerHint("Click on the practice dummy to attack!", 4000);
   });
-}
 
-function playShipWreckCutscene() {
-  setPhase('cutscene');
-  showBanner("STORM APPROACHING!", "A ROGUE WAVE SHATTERS THE HULL");
+  // 2. DUMMY TRAINING COMPLETE
+  callbacks.onDummyComplete = () => {
+    setCaptainSpeech("Good swings! Now clean up those 3 crates on deck!");
+    showBannerHint("Walk up to the 3 crates and press 'E' to clean them up.", 5000);
+  };
 
-  triggerStorm(4000);
-  triggerScreenShake(4.0, 0.4);
+  // 3. CHORES COMPLETE -> STORM CRASH
+  callbacks.onChoresComplete = () => {
+    setCaptainSpeech("STORM COMING! HOLD ON TO SOMETHING!");
+    showBannerHint("A massive wave hits the ship!", 3000);
+    triggerStorm(3000);
+  };
 
-  startCinematicSequence([
-    {
-      pos: { x: -1.5, y: 0.5, z: 1 },
-      look: { x: 2, y: 2.0, z: -5 },
-      duration: 1.5
-    },
-    {
-      pos: { x: 0, y: -1.0, z: -2 },
-      look: { x: 0, y: -2.0, z: -10 },
-      duration: 2.0
-    }
-  ], () => {
+  // 4. SHIP CRASHES INTO DUNGEON
+  callbacks.onShipCrash = () => {
+    setCaptainSpeech(null); // Remove speech bubble
     setShipVisibility(false);
-    playDungeonArrivalCutscene();
-  });
-}
-
-function playDungeonArrivalCutscene() {
-  setDungeonVisibility(true);
-  state.level = 1;
-  updateHUD();
-
-  showBanner("ZONE 1: THE LIVING MAZE", "FIND THE LADDER & WATCH OUT FOR RANGED SPITTERS!");
-
-  startCinematicSequence([
-    {
-      pos: { x: 0, y: 3.0, z: 8 },
-      look: { x: 0, y: 0.5, z: -8 },
-      duration: 2.0
-    },
-    {
-      pos: { x: 0, y: 0, z: 0 },
-      look: { x: 0, y: 0, z: -5 },
-      duration: 1.2
-    }
-  ], () => {
+    setDungeonVisibility(true);
     setPhase('arena');
-    nextArenaLevel();
-  });
-}
-
-function nextArenaLevel() {
-  if (state.level > 99) {
-    playBossIntroCutscene();
-    return;
-  }
-  spawnEnemy(state.level);
-  updateHUD();
-}
-
-function onEnemyDefeated() {
-  if (state.level >= 99) {
-    playBossIntroCutscene();
-    return;
-  }
-  state.level++;
-  nextArenaLevel();
-}
-
-function playBossIntroCutscene() {
-  setPhase('cutscene');
-  setDungeonVisibility(false);
-  setBossArenaVisibility(true);
-  spawnKraken();
-
-  showBanner("FINAL BOSS: THE KRAKEN ABYSS", "DESTROY THE CRIMSON CORE");
-  triggerScreenShake(3.5, 0.25);
-
-  startCinematicSequence([
-    {
-      pos: { x: 0, y: 8.0, z: 12 },
-      look: { x: 0, y: 2.0, z: -20 },
-      duration: 3.0
-    },
-    {
-      pos: { x: 0, y: 0, z: 0 },
-      look: { x: 0, y: 0, z: -20 },
-      duration: 1.5
-    }
-  ], () => {
-    setPhase('boss');
+    spawnEnemy(1);
     updateHUD();
-  });
-}
-
-function playVictoryCutscene() {
-  setPhase('cutscene');
-  showBanner("CONTRACT COMPLETE!", "YOU SURVIVED AND CLAIMED THE $10,000,000");
-
-  startCinematicSequence([
-    {
-      pos: { x: 0, y: 0, z: -10 },
-      look: { x: 0, y: 0, z: -25 },
-      duration: 4.0
-    }
-  ], () => {
-    resetGame();
-    playIntroCutscene();
-  });
-}
-
-function playGameOverCutscene() {
-  setPhase('cutscene');
-  showBanner("YOU DIED", "RECOVERING AT ARENA BASE...");
-
-  startCinematicSequence([
-    {
-      pos: { x: 0, y: -1.0, z: 1 },
-      look: { x: 0, y: 2.0, z: -2 },
-      duration: 3.0
-    }
-  ], () => {
-    resetGame();
-    playIntroCutscene();
-  });
-}
-
-function onTentacleSeen() {
-  const hint = document.getElementById('top-hint');
-  if (hint) {
-    hint.textContent = 'THE LIVING WALL BURST OPEN RIGHT IN FRONT OF YOU!';
-    setTimeout(() => {
-      if (hint) hint.textContent = 'COLLECT BATTERIES & POTIONS TO SURVIVE';
-    }, 4000);
-  }
-}
-
-function showBanner(title, subtitle) {
-  const zd = document.getElementById('zone-display');
-  const hint = document.getElementById('top-hint');
-  if (zd) zd.textContent = title;
-  if (hint) hint.textContent = subtitle;
-}
+    showBannerHint("Press 'F' to switch on your flashlight!", 5000);
+  };
+});
