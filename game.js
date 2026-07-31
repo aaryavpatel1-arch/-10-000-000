@@ -236,8 +236,80 @@ function setupDungeonMaze() {
   entities.tentacle.visible = false;
   groups.dungeon.add(entities.tentacle);
 
+  spawnLadder();
+
   groups.dungeon.visible = false;
   scene.add(groups.dungeon);
+}
+
+// Spawns a ladder to advance levels
+function spawnLadder() {
+  if (entities.ladder) {
+    groups.dungeon.remove(entities.ladder);
+  }
+
+  entities.ladder = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0xa66e38, roughness: 0.5 });
+
+  // Ladder Rails
+  const leftRail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.5), woodMat);
+  leftRail.position.set(-0.4, 2.25, 0);
+  entities.ladder.add(leftRail);
+
+  const rightRail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.5), woodMat);
+  rightRail.position.set(0.4, 2.25, 0);
+  entities.ladder.add(rightRail);
+
+  // Ladder Rungs
+  for (let r = 0.5; r <= 4.0; r += 0.5) {
+    const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8), woodMat);
+    rung.rotation.z = Math.PI / 2;
+    rung.position.set(0, r, 0);
+    entities.ladder.add(rung);
+  }
+
+  // Position ladder randomly in maze away from start
+  const randX = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12);
+  const randZ = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12);
+
+  entities.ladder.position.set(randX, 0, randZ);
+  groups.dungeon.add(entities.ladder);
+}
+
+function interactWithLadder() {
+  if (!entities.ladder || state.phase !== 'arena') return;
+
+  const playerPos = groups.player.position;
+  const dist = playerPos.distanceTo(entities.ladder.position);
+
+  if (dist < 3.0) {
+    // 30% chance the ladder breaks randomly
+    const ladderBreaks = Math.random() < 0.30;
+
+    if (ladderBreaks) {
+      showBanner("The ladder broke! Search the maze for another one!", 4000);
+      spawnLadder(); // Spawn a replacement ladder somewhere else
+    } else {
+      // Level Up!
+      state.level++;
+      updateHUD();
+      showBanner(`Advanced to Level ${state.level}!`, 3000);
+      
+      // Reset player position & spawn new level setup
+      groups.player.position.set(0, 1.6, 5);
+      spawnEnemiesForLevel(state.level);
+      spawnLadder();
+    }
+  }
+}
+
+function showBanner(msg, duration = 3000) {
+  const banner = document.getElementById('banner-message');
+  if (banner) {
+    banner.textContent = msg;
+    banner.style.display = 'block';
+    setTimeout(() => { banner.style.display = 'none'; }, duration);
+  }
 }
 
 function setupBossArena() {
@@ -370,6 +442,8 @@ export function setupInput() {
             }
           }
         });
+      } else if (state.phase === 'arena') {
+        interactWithLadder();
       }
     }
   });
