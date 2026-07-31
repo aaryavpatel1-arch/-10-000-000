@@ -33,7 +33,6 @@ window.addEventListener('DOMContentLoaded', () => {
     { pos: { x: -1, y: 0, z: 1 }, look: { x: -2, y: 0, z: -1 }, duration: 2.0 },
     { pos: { x: 0, y: 0, z: 0 }, look: { x: 2, y: -0.2, z: -3 }, duration: 1.5 }
   ], () => {
-    // Cutscene ends -> Gives control back at normal height
     setPhase('tutorial');
     setCaptainSpeech("Welcome aboard, boy! Go hit that dummy 5 times!");
     showBannerHint("Click on the practice dummy to attack!", 4000);
@@ -58,8 +57,8 @@ window.addEventListener('DOMContentLoaded', () => {
     setShipVisibility(false);
     setDungeonVisibility(true);
     setPhase('arena');
-    spawnEnemiesForLevel(1);
+    spawnEnemiesForLevel(state.level);
     updateHUD();
-    showBannerHint("Press 'F' to switch on your flashlight!", 5000);
+    showBannerHint("Press 'F' for Flashlight. Find the ladder and press 'E' to escape to the next level!", 6000);
   };
 });
