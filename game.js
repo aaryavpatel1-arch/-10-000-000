@@ -22,9 +22,9 @@ export const callbacks = {
 let scene, camera, renderer;
 let flashlight, ambientLight, sunLight;
 let clock = new THREE.Clock();
-let keys = {};
+const keyState = { w: false, a: false, s: false, d: false, e: false, f: false };
 
-const groups = { ship: null, dungeon: null, boss: null, player: null };
+const groups = { ship: null, dungeon: null, boss: null, player: null, mazeWalls: null };
 const entities = {
   dummy: null,
   captain: null,
@@ -55,9 +55,8 @@ let tentacleTimer = Math.random() * 15 + 10;
 let livingWallState = { triggered: false, progress: 0 };
 let pitch = 0;
 let captainText = "Welcome aboard, boy!";
-
-// Flashlight Spam Detection
 let flashlightToggles = [];
+let lastDamageTime = 0;
 
 export function initEngine() {
   const canvas = document.getElementById('gl-canvas');
@@ -170,7 +169,7 @@ function setupShipDeck() {
   entities.dummy.position.set(2, 0, -3);
   groups.ship.add(entities.dummy);
 
-  // Chores (Crates)
+  // Chores
   for (let c = 0; c < 3; c++) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), woodLight);
     crate.position.set(-3 + c * 1.5, 0.4, 1);
@@ -183,56 +182,30 @@ function setupShipDeck() {
 
 function setupDungeonMaze() {
   groups.dungeon = new THREE.Group();
-  colliders.length = 0;
-  
-  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0d0e12, roughness: 0.95 });
-  const floorMat = new THREE.MeshStandardMaterial({ color: 0x050608, roughness: 0.98 });
+  groups.mazeWalls = new THREE.Group();
+  groups.dungeon.add(groups.mazeWalls);
 
+  const floorMat = new THREE.MeshStandardMaterial({ color: 0x050608, roughness: 0.98 });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), floorMat);
   floor.rotation.x = -Math.PI / 2;
   groups.dungeon.add(floor);
 
-  const mapSize = 60;
-  const wallHeight = 5;
+  buildProceduralRealMaze();
 
-  const perimeterWalls = [
-    { pos: [0, wallHeight / 2, -mapSize / 2], size: [mapSize, wallHeight, 1.0] },
-    { pos: [0, wallHeight / 2, mapSize / 2], size: [mapSize, wallHeight, 1.0] },
-    { pos: [-mapSize / 2, wallHeight / 2, 0], size: [1.0, wallHeight, mapSize] },
-    { pos: [mapSize / 2, wallHeight / 2, 0], size: [1.0, wallHeight, mapSize] }
-  ];
-
-  perimeterWalls.forEach(p => {
-    const pWall = new THREE.Mesh(new THREE.BoxGeometry(...p.size), wallMat);
-    pWall.position.set(...p.pos);
-    groups.dungeon.add(pWall);
-    colliders.push(new THREE.Box3().setFromObject(pWall));
-  });
-
-  // MAZE WALLS WITH BALANCED HITBOX SIZING
-  for (let i = -24; i <= 24; i += 8) {
-    for (let j = -24; j <= 24; j += 8) {
-      if ((Math.abs(i) > 4 || Math.abs(j) > 4) && Math.random() > 0.35) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 4.5, 3.8), wallMat);
-        wall.position.set(i, 2.25, j);
-        groups.dungeon.add(wall);
-        colliders.push(new THREE.Box3().setFromObject(wall));
-      }
-    }
-  }
-
-  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 4.5, 1.0), wallMat);
+  // Living Wall
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0d0e12, roughness: 0.95 });
+  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 4.5, 0.8), wallMat);
   entities.livingWall.position.set(0, 2.25, -6);
   groups.dungeon.add(entities.livingWall);
   colliders.push(new THREE.Box3().setFromObject(entities.livingWall));
 
+  // Tentacle
   entities.tentacle = new THREE.Group();
   const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x020a0d, roughness: 0.1 });
 
   for (let s = 0; s < 14; s++) {
     const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.6 - s * 0.035, 0.7 - s * 0.035, 1.0, 12), tentacleMat);
     seg.position.z = s * 0.9;
-    seg.name = `gt_seg_${s}`;
     entities.tentacle.add(seg);
   }
 
@@ -240,13 +213,107 @@ function setupDungeonMaze() {
   entities.tentacle.visible = false;
   groups.dungeon.add(entities.tentacle);
 
-  // SETUP GHOST CAPTAIN MODEL
   setupGhostCaptain();
-
   spawnLadder();
 
   groups.dungeon.visible = false;
   scene.add(groups.dungeon);
+}
+
+// REAL PROCEDURAL MAZE GENERATOR (DEPTH-FIRST SEARCH)
+function buildProceduralRealMaze() {
+  colliders.length = 0;
+  
+  // Clear old maze walls
+  while (groups.mazeWalls.children.length > 0) {
+    groups.mazeWalls.remove(groups.mazeWalls.children[0]);
+  }
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0x0d0e12, roughness: 0.95 });
+  const cols = 9, rows = 9;
+  const cellSize = 5.0;
+  const wallHeight = 4.5;
+  const wallThick = 0.4;
+
+  const grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => ({
+    visited: false,
+    walls: [true, true, true, true] // North, East, South, West
+  })));
+
+  function getUnvisitedNeighbors(r, c) {
+    const neighbors = [];
+    if (r > 0 && !grid[r - 1][c].visited) neighbors.push({ r: r - 1, c, dir: 0 }); // N
+    if (c < cols - 1 && !grid[r][c + 1].visited) neighbors.push({ r, c: c + 1, dir: 1 }); // E
+    if (r < rows - 1 && !grid[r + 1][c].visited) neighbors.push({ r: r + 1, c, dir: 2 }); // S
+    if (c > 0 && !grid[r][c - 1].visited) neighbors.push({ r, c: c - 1, dir: 3 }); // W
+    return neighbors;
+  }
+
+  // Maze backtracking stack
+  let currR = 0, currC = 0;
+  grid[currR][currC].visited = true;
+  const stack = [{ r: currR, c: currC }];
+
+  while (stack.length > 0) {
+    const current = stack[stack.length - 1];
+    const neighbors = getUnvisitedNeighbors(current.r, current.c);
+
+    if (neighbors.length > 0) {
+      const next = neighbors[Math.floor(Math.random() * neighbors.length)];
+      grid[current.r][current.c].walls[next.dir] = false;
+      const oppositeDir = (next.dir + 2) % 4;
+      grid[next.r][next.c].walls[oppositeDir] = false;
+      grid[next.r][next.c].visited = true;
+      stack.push({ r: next.r, c: next.c });
+    } else {
+      stack.pop();
+    }
+  }
+
+  // Clear spawn hub area
+  grid[4][4].walls = [false, false, false, false];
+  grid[4][3].walls[1] = false; grid[4][5].walls[3] = false;
+  grid[3][4].walls[2] = false; grid[5][4].walls[0] = false;
+
+  const offsetX = -(cols * cellSize) / 2 + cellSize / 2;
+  const offsetZ = -(rows * cellSize) / 2 + cellSize / 2;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = offsetX + c * cellSize;
+      const z = offsetZ + r * cellSize;
+      const cell = grid[r][c];
+
+      // North Wall
+      if (cell.walls[0]) {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(cellSize + wallThick, wallHeight, wallThick), wallMat);
+        w.position.set(x, wallHeight / 2, z - cellSize / 2);
+        groups.mazeWalls.add(w);
+        colliders.push(new THREE.Box3().setFromObject(w));
+      }
+      // West Wall
+      if (cell.walls[3]) {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(wallThick, wallHeight, cellSize + wallThick), wallMat);
+        w.position.set(x - cellSize / 2, wallHeight / 2, z);
+        groups.mazeWalls.add(w);
+        colliders.push(new THREE.Box3().setFromObject(w));
+      }
+
+      // Outer South & East boundaries
+      if (r === rows - 1 && cell.walls[2]) {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(cellSize + wallThick, wallHeight, wallThick), wallMat);
+        w.position.set(x, wallHeight / 2, z + cellSize / 2);
+        groups.mazeWalls.add(w);
+        colliders.push(new THREE.Box3().setFromObject(w));
+      }
+      if (c === cols - 1 && cell.walls[1]) {
+        const w = new THREE.Mesh(new THREE.BoxGeometry(wallThick, wallHeight, cellSize + wallThick), wallMat);
+        w.position.set(x + cellSize / 2, wallHeight / 2, z);
+        groups.mazeWalls.add(w);
+        colliders.push(new THREE.Box3().setFromObject(w));
+      }
+    }
+  }
 }
 
 function setupGhostCaptain() {
@@ -267,7 +334,6 @@ function setupGhostCaptain() {
   hat.position.y = 2.3;
   entities.ghostCaptain.add(hat);
 
-  // Glowing white ghostly eyes
   [-0.12, 0.12].forEach(x => {
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeMat);
     eye.position.set(x, 2.05, -0.28);
@@ -281,14 +347,12 @@ function setupGhostCaptain() {
 function triggerGhostCaptainJumpscare() {
   if (!entities.ghostCaptain || state.phase !== 'arena') return;
 
-  // Position ghost directly in front of camera
   const forward = new THREE.Vector3(0, 0, -2.5).applyQuaternion(camera.quaternion);
   entities.ghostCaptain.position.copy(groups.player.position).add(forward);
   entities.ghostCaptain.position.y = 0.2;
   entities.ghostCaptain.lookAt(groups.player.position);
 
   entities.ghostCaptain.visible = true;
-
   showBanner("THE CAPTAIN'S SPIRIT IS WATCHING YOU...", 3500);
 
   setTimeout(() => {
@@ -319,8 +383,9 @@ function spawnLadder() {
     entities.ladder.add(rung);
   }
 
-  const randX = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12);
-  const randZ = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12);
+  // Spawn ladder in a far maze quadrant
+  const randX = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 8);
+  const randZ = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 8);
 
   entities.ladder.position.set(randX, 0, randZ);
   groups.dungeon.add(entities.ladder);
@@ -336,16 +401,25 @@ function interactWithLadder() {
     const ladderBreaks = Math.random() < 0.30;
 
     if (ladderBreaks) {
-      showBanner("The ladder broke! Search the maze for another one!", 4000);
+      showBanner("The ladder snapped! Search the maze for another one!", 4000);
       spawnLadder();
     } else {
-      state.level++;
-      updateHUD();
-      showBanner(`Advanced to Level ${state.level}!`, 3000);
-      
-      groups.player.position.set(0, 1.6, 5);
-      spawnEnemiesForLevel(state.level);
-      spawnLadder();
+      // CINEMATIC ASCENSION CUTSCENE
+      startCinematicSequence([
+        { pos: { x: playerPos.x, y: playerPos.y + 1, z: playerPos.z + 2 }, look: { x: entities.ladder.position.x, y: 1.5, z: entities.ladder.position.z }, duration: 1.2 },
+        { pos: { x: entities.ladder.position.x, y: 3.5, z: entities.ladder.position.z + 1 }, look: { x: entities.ladder.position.x, y: 4.5, z: entities.ladder.position.z }, duration: 1.2 }
+      ], () => {
+        state.level++;
+        updateHUD();
+        showBanner(`Advanced to Level ${state.level}!`, 3000);
+        
+        // Re-generate maze for fresh level structure
+        buildProceduralRealMaze();
+        groups.player.position.set(0, 1.6, 5);
+        spawnEnemiesForLevel(state.level);
+        spawnLadder();
+        setPhase('arena');
+      });
     }
   }
 }
@@ -419,7 +493,9 @@ export function spawnEnemiesForLevel(count = 2) {
   entities.enemies.forEach(e => groups.dungeon.remove(e.mesh));
   entities.enemies = [];
 
-  for (let i = 0; i < count; i++) {
+  const actualCount = Math.min(count, 4);
+
+  for (let i = 0; i < actualCount; i++) {
     const stalkerGroup = new THREE.Group();
 
     const entityMat = new THREE.MeshBasicMaterial({ color: 0x050505, wireframe: true });
@@ -449,11 +525,12 @@ export function spawnEnemiesForLevel(count = 2) {
     stalkerGroup.add(rightArm);
 
     const angle = Math.random() * Math.PI * 2;
-    const distance = 16 + Math.random() * 10;
+    const distance = 14 + Math.random() * 8;
     stalkerGroup.position.set(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
 
     groups.dungeon.add(stalkerGroup);
-    entities.enemies.push({ mesh: stalkerGroup, hp: 60, speed: 1.8, jitterTime: Math.random() * 10 });
+    // BALANCED ENEMY SPEEDS & HEALTH
+    entities.enemies.push({ mesh: stalkerGroup, hp: 45, speed: 1.4, jitterTime: Math.random() * 10 });
   }
 }
 
@@ -467,12 +544,11 @@ export function enableHorrorAtmosphere() {
   if (sunLight) sunLight.intensity = 0;
 }
 
-// ACCURATE & SLIDING COLLISION SYSTEM
 function checkCollisions(newPosition) {
   if (!groups.dungeon.visible) return false;
-  const playerRadius = 0.15; // Tightened hitbox
+  const playerRadius = 0.22;
   const playerBox = new THREE.Box3(
-    new THREE.Vector3(newPosition.x - playerRadius, 0.4, newPosition.z - playerRadius),
+    new THREE.Vector3(newPosition.x - playerRadius, 0.2, newPosition.z - playerRadius),
     new THREE.Vector3(newPosition.x + playerRadius, 1.8, newPosition.z + playerRadius)
   );
 
@@ -482,19 +558,22 @@ function checkCollisions(newPosition) {
   return false;
 }
 
+// ROBUST DIRECT KEY INPUT SYSTEM
 export function setupInput() {
   const canvas = document.getElementById('gl-canvas');
 
   window.addEventListener('keydown', e => {
-    keys[e.key.toLowerCase()] = true;
-    keys[e.code] = true;
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.code === 'KeyW') keyState.w = true;
+    if (k === 'a' || e.code === 'KeyA') keyState.a = true;
+    if (k === 's' || e.code === 'KeyS') keyState.s = true;
+    if (k === 'd' || e.code === 'KeyD') keyState.d = true;
 
-    if (e.key.toLowerCase() === 'f') {
+    if (k === 'f' || e.code === 'KeyF') {
       state.flashlightOn = !state.flashlightOn;
       flashlight.intensity = state.flashlightOn ? 25 : 0;
       updateHUD();
 
-      // Track spam toggles
       const now = Date.now();
       flashlightToggles.push(now);
       flashlightToggles = flashlightToggles.filter(t => now - t < 2500);
@@ -505,7 +584,7 @@ export function setupInput() {
       }
     }
 
-    if (e.key.toLowerCase() === 'e') {
+    if (k === 'e' || e.code === 'KeyE') {
       if (state.phase === 'tutorial') {
         entities.chores.forEach((crate) => {
           if (groups.player.position.distanceTo(crate.position) < 2.5 && crate.visible !== false) {
@@ -523,8 +602,11 @@ export function setupInput() {
   });
 
   window.addEventListener('keyup', e => {
-    keys[e.key.toLowerCase()] = false;
-    keys[e.code] = false;
+    const k = e.key.toLowerCase();
+    if (k === 'w' || e.code === 'KeyW') keyState.w = false;
+    if (k === 'a' || e.code === 'KeyA') keyState.a = false;
+    if (k === 's' || e.code === 'KeyS') keyState.s = false;
+    if (k === 'd' || e.code === 'KeyD') keyState.d = false;
   });
 
   window.addEventListener('mousemove', e => {
@@ -558,7 +640,7 @@ function handleAttack() {
   } else if (state.phase === 'arena') {
     entities.enemies.forEach((enemy, index) => {
       if (groups.player.position.distanceTo(enemy.mesh.position) < 3.5) {
-        enemy.hp -= 35;
+        enemy.hp -= 25;
         if (enemy.hp <= 0) {
           groups.dungeon.remove(enemy.mesh);
           entities.enemies.splice(index, 1);
@@ -616,23 +698,38 @@ function onResize() {
 
 function animate() {
   const delta = clock.getDelta();
+  const now = Date.now();
 
   update3DSpeechBubble();
 
-  // BACKROOMS ENTITY STALKING & JITTER ANIMATION
+  // STALKER BEHAVIOR & BALANCED NON-ONE-SHOT DAMAGE
   if (groups.dungeon.visible && state.phase === 'arena') {
     entities.enemies.forEach(enemy => {
-      enemy.jitterTime += delta * 12.0;
+      enemy.jitterTime += delta * 10.0;
 
       enemy.mesh.rotation.y = Math.sin(enemy.jitterTime * 0.5) * 0.15;
       enemy.mesh.position.y = Math.sin(enemy.jitterTime * 2.0) * 0.05;
 
       const dirToPlayer = new THREE.Vector3().subVectors(groups.player.position, enemy.mesh.position);
       dirToPlayer.y = 0;
+      const dist = dirToPlayer.length();
 
-      if (dirToPlayer.length() > 2.0) {
+      if (dist > 1.2) {
         dirToPlayer.normalize();
         enemy.mesh.position.addScaledVector(dirToPlayer, enemy.speed * delta);
+      } else {
+        // ENEMY HITS FOR 12 HP (NOT A ONE-SHOT) WITH A 1.5s COOLDOWN
+        if (now - lastDamageTime > 1500) {
+          state.hp -= 12;
+          lastDamageTime = now;
+          updateHUD();
+          showBanner("THE ENTITY SLASHED YOU!", 1500);
+
+          if (state.hp <= 0) {
+            showBanner("YOU WERE CONSUMED BY THE SHADOWS...", 5000);
+            setTimeout(() => { location.reload(); }, 3000);
+          }
+        }
       }
     });
 
@@ -694,15 +791,15 @@ function animate() {
     }
   }
 
-  // Smooth WASD Movement with Axis Sliding
+  // Smooth WASD Movement System
   if (['tutorial', 'arena'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
 
-    if (keys['w'] || keys['KeyW']) moveDir.z -= 1;
-    if (keys['s'] || keys['KeyS']) moveDir.z += 1;
-    if (keys['a'] || keys['KeyA']) moveDir.x -= 1;
-    if (keys['d'] || keys['KeyD']) moveDir.x += 1;
+    if (keyState.w) moveDir.z -= 1;
+    if (keyState.s) moveDir.z += 1;
+    if (keyState.a) moveDir.x -= 1;
+    if (keyState.d) moveDir.x += 1;
 
     if (moveDir.lengthSq() > 0) {
       moveDir.normalize();
@@ -710,7 +807,6 @@ function animate() {
       const forwardVec = new THREE.Vector3(0, 0, moveDir.z).applyQuaternion(groups.player.quaternion);
       const sideVec = new THREE.Vector3(moveDir.x, 0, 0).applyQuaternion(groups.player.quaternion);
 
-      // Smooth wall sliding check
       const targetPosX = groups.player.position.clone().addScaledVector(sideVec, moveSpeed);
       if (!checkCollisions(targetPosX)) {
         groups.player.position.x = targetPosX.x;
