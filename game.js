@@ -28,6 +28,7 @@ const groups = { ship: null, dungeon: null, boss: null, player: null };
 const entities = {
   dummy: null,
   captain: null,
+  ghostCaptain: null,
   chores: [],
   enemies: [],
   projectiles: [],
@@ -54,6 +55,9 @@ let tentacleTimer = Math.random() * 15 + 10;
 let livingWallState = { triggered: false, progress: 0 };
 let pitch = 0;
 let captainText = "Welcome aboard, boy!";
+
+// Flashlight Spam Detection
+let flashlightToggles = [];
 
 export function initEngine() {
   const canvas = document.getElementById('gl-canvas');
@@ -205,11 +209,11 @@ function setupDungeonMaze() {
     colliders.push(new THREE.Box3().setFromObject(pWall));
   });
 
-  // TIGHTER, PRECISE WALL HITBOXES (THINNER WALLS = EASY MOVEMENT)
+  // MAZE WALLS WITH BALANCED HITBOX SIZING
   for (let i = -24; i <= 24; i += 8) {
     for (let j = -24; j <= 24; j += 8) {
       if ((Math.abs(i) > 4 || Math.abs(j) > 4) && Math.random() > 0.35) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.5, 4.5), wallMat);
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 4.5, 3.8), wallMat);
         wall.position.set(i, 2.25, j);
         groups.dungeon.add(wall);
         colliders.push(new THREE.Box3().setFromObject(wall));
@@ -217,7 +221,7 @@ function setupDungeonMaze() {
     }
   }
 
-  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.5, 1.0), wallMat);
+  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(3.8, 4.5, 1.0), wallMat);
   entities.livingWall.position.set(0, 2.25, -6);
   groups.dungeon.add(entities.livingWall);
   colliders.push(new THREE.Box3().setFromObject(entities.livingWall));
@@ -236,10 +240,60 @@ function setupDungeonMaze() {
   entities.tentacle.visible = false;
   groups.dungeon.add(entities.tentacle);
 
+  // SETUP GHOST CAPTAIN MODEL
+  setupGhostCaptain();
+
   spawnLadder();
 
   groups.dungeon.visible = false;
   scene.add(groups.dungeon);
+}
+
+function setupGhostCaptain() {
+  entities.ghostCaptain = new THREE.Group();
+
+  const ghostMat = new THREE.MeshBasicMaterial({ color: 0x113333, wireframe: true, transparent: true, opacity: 0.75 });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.35, 1.8, 10), ghostMat);
+  body.position.y = 0.9;
+  entities.ghostCaptain.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 10), ghostMat);
+  head.position.y = 2.0;
+  entities.ghostCaptain.add(head);
+
+  const hat = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.4, 0.3, 10), ghostMat);
+  hat.position.y = 2.3;
+  entities.ghostCaptain.add(hat);
+
+  // Glowing white ghostly eyes
+  [-0.12, 0.12].forEach(x => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), eyeMat);
+    eye.position.set(x, 2.05, -0.28);
+    entities.ghostCaptain.add(eye);
+  });
+
+  entities.ghostCaptain.visible = false;
+  groups.dungeon.add(entities.ghostCaptain);
+}
+
+function triggerGhostCaptainJumpscare() {
+  if (!entities.ghostCaptain || state.phase !== 'arena') return;
+
+  // Position ghost directly in front of camera
+  const forward = new THREE.Vector3(0, 0, -2.5).applyQuaternion(camera.quaternion);
+  entities.ghostCaptain.position.copy(groups.player.position).add(forward);
+  entities.ghostCaptain.position.y = 0.2;
+  entities.ghostCaptain.lookAt(groups.player.position);
+
+  entities.ghostCaptain.visible = true;
+
+  showBanner("THE CAPTAIN'S SPIRIT IS WATCHING YOU...", 3500);
+
+  setTimeout(() => {
+    if (entities.ghostCaptain) entities.ghostCaptain.visible = false;
+  }, 2500);
 }
 
 function spawnLadder() {
@@ -361,7 +415,6 @@ function update3DSpeechBubble() {
   }
 }
 
-// BACKROOMS STALKER CREATION (DISTORTED WIREFRAME HUMANISTIC ENTITY)
 export function spawnEnemiesForLevel(count = 2) {
   entities.enemies.forEach(e => groups.dungeon.remove(e.mesh));
   entities.enemies = [];
@@ -369,27 +422,22 @@ export function spawnEnemiesForLevel(count = 2) {
   for (let i = 0; i < count; i++) {
     const stalkerGroup = new THREE.Group();
 
-    // Pitch black wireframe material (glitched silhouette)
     const entityMat = new THREE.MeshBasicMaterial({ color: 0x050505, wireframe: true });
     const glowEyeMat = new THREE.MeshBasicMaterial({ color: 0xff1111 });
 
-    // Unnaturally tall torso
     const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.1, 2.6, 6), entityMat);
     torso.position.y = 1.6;
-    torso.rotation.z = 0.1; // Slouched pose
+    torso.rotation.z = 0.1;
     stalkerGroup.add(torso);
 
-    // Distorted head
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.45, 0.35), entityMat);
     head.position.set(0.1, 3.0, 0.05);
     stalkerGroup.add(head);
 
-    // Single unblinking hollow eye
     const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), glowEyeMat);
     eye.position.set(0.1, 3.0, -0.18);
     stalkerGroup.add(eye);
 
-    // Extremely long, thin limbs
     const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 2.2), entityMat);
     leftArm.position.set(-0.35, 1.7, 0);
     leftArm.rotation.z = 0.25;
@@ -400,7 +448,6 @@ export function spawnEnemiesForLevel(count = 2) {
     rightArm.rotation.z = -0.15;
     stalkerGroup.add(rightArm);
 
-    // Spawn hidden in deep maze corners (far from player at (0, 1.6, 5))
     const angle = Math.random() * Math.PI * 2;
     const distance = 16 + Math.random() * 10;
     stalkerGroup.position.set(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
@@ -420,13 +467,13 @@ export function enableHorrorAtmosphere() {
   if (sunLight) sunLight.intensity = 0;
 }
 
-// TUNED PLAYER HITBOX FOR SMOOTH NAVIGATION
+// ACCURATE & SLIDING COLLISION SYSTEM
 function checkCollisions(newPosition) {
   if (!groups.dungeon.visible) return false;
-  const playerRadius = 0.2; // Reduced collision radius
+  const playerRadius = 0.15; // Tightened hitbox
   const playerBox = new THREE.Box3(
-    new THREE.Vector3(newPosition.x - playerRadius, 0.2, newPosition.z - playerRadius),
-    new THREE.Vector3(newPosition.x + playerRadius, 2.0, newPosition.z + playerRadius)
+    new THREE.Vector3(newPosition.x - playerRadius, 0.4, newPosition.z - playerRadius),
+    new THREE.Vector3(newPosition.x + playerRadius, 1.8, newPosition.z + playerRadius)
   );
 
   for (let box of colliders) {
@@ -446,6 +493,16 @@ export function setupInput() {
       state.flashlightOn = !state.flashlightOn;
       flashlight.intensity = state.flashlightOn ? 25 : 0;
       updateHUD();
+
+      // Track spam toggles
+      const now = Date.now();
+      flashlightToggles.push(now);
+      flashlightToggles = flashlightToggles.filter(t => now - t < 2500);
+
+      if (flashlightToggles.length >= 5) {
+        triggerGhostCaptainJumpscare();
+        flashlightToggles = [];
+      }
     }
 
     if (e.key.toLowerCase() === 'e') {
@@ -567,11 +624,9 @@ function animate() {
     entities.enemies.forEach(enemy => {
       enemy.jitterTime += delta * 12.0;
 
-      // Unsettling micro-twitches / glitches
       enemy.mesh.rotation.y = Math.sin(enemy.jitterTime * 0.5) * 0.15;
       enemy.mesh.position.y = Math.sin(enemy.jitterTime * 2.0) * 0.05;
 
-      // Stalker movement towards player
       const dirToPlayer = new THREE.Vector3().subVectors(groups.player.position, enemy.mesh.position);
       dirToPlayer.y = 0;
 
@@ -581,7 +636,6 @@ function animate() {
       }
     });
 
-    // Tentacle event timer
     tentacleTimer -= delta;
     if (tentacleTimer <= 0 && !livingWallState.triggered) {
       livingWallState.triggered = true;
@@ -640,7 +694,7 @@ function animate() {
     }
   }
 
-  // WASD Movement
+  // Smooth WASD Movement with Axis Sliding
   if (['tutorial', 'arena'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
@@ -656,11 +710,16 @@ function animate() {
       const forwardVec = new THREE.Vector3(0, 0, moveDir.z).applyQuaternion(groups.player.quaternion);
       const sideVec = new THREE.Vector3(moveDir.x, 0, 0).applyQuaternion(groups.player.quaternion);
 
+      // Smooth wall sliding check
       const targetPosX = groups.player.position.clone().addScaledVector(sideVec, moveSpeed);
-      if (!checkCollisions(targetPosX)) groups.player.position.x = targetPosX.x;
+      if (!checkCollisions(targetPosX)) {
+        groups.player.position.x = targetPosX.x;
+      }
 
       const targetPosZ = groups.player.position.clone().addScaledVector(forwardVec, moveSpeed);
-      if (!checkCollisions(targetPosZ)) groups.player.position.z = targetPosZ.z;
+      if (!checkCollisions(targetPosZ)) {
+        groups.player.position.z = targetPosZ.z;
+      }
     }
   }
 
