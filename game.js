@@ -20,7 +20,7 @@ export const callbacks = {
 };
 
 let scene, camera, renderer;
-let flashlight, ambientLight;
+let flashlight, ambientLight, sunLight;
 let clock = new THREE.Clock();
 let keys = {};
 
@@ -59,9 +59,9 @@ export function initEngine() {
   const canvas = document.getElementById('gl-canvas');
   scene = new THREE.Scene();
 
-  const skyColor = 0x87ceeb;
+  const skyColor = 0xa0c4ff;
   scene.background = new THREE.Color(skyColor);
-  scene.fog = new THREE.FogExp2(skyColor, 0.005);
+  scene.fog = new THREE.FogExp2(skyColor, 0.002);
 
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 1000);
 
@@ -70,8 +70,13 @@ export function initEngine() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  ambientLight = new THREE.AmbientLight(0xfff0dd, 0.95);
+  // Daytime ship lighting
+  ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
   scene.add(ambientLight);
+
+  sunLight = new THREE.DirectionalLight(0xffffff, 1.0);
+  sunLight.position.set(10, 20, 10);
+  scene.add(sunLight);
 
   setupPlayerAndFlashlight();
   setupShipDeck();
@@ -106,10 +111,10 @@ function setupPlayerAndFlashlight() {
 function setupShipDeck() {
   groups.ship = new THREE.Group();
 
-  const woodDark = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.6 });
-  const woodLight = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.5 });
-  const ironMat = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.7 });
-  const clothMat = new THREE.MeshStandardMaterial({ color: 0xddddcc, roughness: 0.8 });
+  const woodDark = new THREE.MeshStandardMaterial({ color: 0x6e4327, roughness: 0.5 });
+  const woodLight = new THREE.MeshStandardMaterial({ color: 0xa66e38, roughness: 0.4 });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x444444, metalness: 0.6 });
+  const clothMat = new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.8 });
   const captainMat = new THREE.MeshStandardMaterial({ color: 0x1b263b, roughness: 0.5 });
 
   const floor = new THREE.Mesh(new THREE.BoxGeometry(16, 0.4, 22), woodDark);
@@ -145,7 +150,7 @@ function setupShipDeck() {
   entities.captain.position.set(-2, 0, -1);
   groups.ship.add(entities.captain);
 
-  // Dummy
+  // Training Dummy
   entities.dummy = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.2, 16), ironMat);
   base.position.y = 0.1;
@@ -165,7 +170,7 @@ function setupShipDeck() {
   // Chores (Crates)
   for (let c = 0; c < 3; c++) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), woodLight);
-    crate.position.set(-4 + c * 1.5, 0.4, 3);
+    crate.position.set(-3 + c * 1.5, 0.4, 1);
     groups.ship.add(crate);
     entities.chores.push(crate);
   }
@@ -325,6 +330,7 @@ export function enableHorrorAtmosphere() {
   renderer.setClearColor(darkFog, 1);
   ambientLight.color.setHex(0x1a202c);
   ambientLight.intensity = 0.15;
+  if (sunLight) sunLight.intensity = 0;
 }
 
 function checkCollisions(newPosition) {
