@@ -190,13 +190,12 @@ function setupDungeonMaze() {
 
   const mapSize = 60;
   const wallHeight = 5;
-  const wallThickness = 2;
 
   const perimeterWalls = [
-    { pos: [0, wallHeight / 2, -mapSize / 2], size: [mapSize, wallHeight, wallThickness] },
-    { pos: [0, wallHeight / 2, mapSize / 2], size: [mapSize, wallHeight, wallThickness] },
-    { pos: [-mapSize / 2, wallHeight / 2, 0], size: [wallThickness, wallHeight, mapSize] },
-    { pos: [mapSize / 2, wallHeight / 2, 0], size: [wallThickness, wallHeight, mapSize] }
+    { pos: [0, wallHeight / 2, -mapSize / 2], size: [mapSize, wallHeight, 1.0] },
+    { pos: [0, wallHeight / 2, mapSize / 2], size: [mapSize, wallHeight, 1.0] },
+    { pos: [-mapSize / 2, wallHeight / 2, 0], size: [1.0, wallHeight, mapSize] },
+    { pos: [mapSize / 2, wallHeight / 2, 0], size: [1.0, wallHeight, mapSize] }
   ];
 
   perimeterWalls.forEach(p => {
@@ -206,10 +205,11 @@ function setupDungeonMaze() {
     colliders.push(new THREE.Box3().setFromObject(pWall));
   });
 
+  // TIGHTER, PRECISE WALL HITBOXES (THINNER WALLS = EASY MOVEMENT)
   for (let i = -24; i <= 24; i += 8) {
     for (let j = -24; j <= 24; j += 8) {
       if ((Math.abs(i) > 4 || Math.abs(j) > 4) && Math.random() > 0.35) {
-        const wall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 6), wallMat);
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.5, 4.5), wallMat);
         wall.position.set(i, 2.25, j);
         groups.dungeon.add(wall);
         colliders.push(new THREE.Box3().setFromObject(wall));
@@ -217,7 +217,7 @@ function setupDungeonMaze() {
     }
   }
 
-  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 1.2), wallMat);
+  entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(4.5, 4.5, 1.0), wallMat);
   entities.livingWall.position.set(0, 2.25, -6);
   groups.dungeon.add(entities.livingWall);
   colliders.push(new THREE.Box3().setFromObject(entities.livingWall));
@@ -242,7 +242,6 @@ function setupDungeonMaze() {
   scene.add(groups.dungeon);
 }
 
-// Spawns a ladder to advance levels
 function spawnLadder() {
   if (entities.ladder) {
     groups.dungeon.remove(entities.ladder);
@@ -251,7 +250,6 @@ function spawnLadder() {
   entities.ladder = new THREE.Group();
   const woodMat = new THREE.MeshStandardMaterial({ color: 0xa66e38, roughness: 0.5 });
 
-  // Ladder Rails
   const leftRail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.5), woodMat);
   leftRail.position.set(-0.4, 2.25, 0);
   entities.ladder.add(leftRail);
@@ -260,7 +258,6 @@ function spawnLadder() {
   rightRail.position.set(0.4, 2.25, 0);
   entities.ladder.add(rightRail);
 
-  // Ladder Rungs
   for (let r = 0.5; r <= 4.0; r += 0.5) {
     const rung = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.8), woodMat);
     rung.rotation.z = Math.PI / 2;
@@ -268,7 +265,6 @@ function spawnLadder() {
     entities.ladder.add(rung);
   }
 
-  // Position ladder randomly in maze away from start
   const randX = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12);
   const randZ = (Math.random() < 0.5 ? -1 : 1) * (12 + Math.random() * 12);
 
@@ -283,19 +279,16 @@ function interactWithLadder() {
   const dist = playerPos.distanceTo(entities.ladder.position);
 
   if (dist < 3.0) {
-    // 30% chance the ladder breaks randomly
     const ladderBreaks = Math.random() < 0.30;
 
     if (ladderBreaks) {
       showBanner("The ladder broke! Search the maze for another one!", 4000);
-      spawnLadder(); // Spawn a replacement ladder somewhere else
+      spawnLadder();
     } else {
-      // Level Up!
       state.level++;
       updateHUD();
       showBanner(`Advanced to Level ${state.level}!`, 3000);
       
-      // Reset player position & spawn new level setup
       groups.player.position.set(0, 1.6, 5);
       spawnEnemiesForLevel(state.level);
       spawnLadder();
@@ -368,29 +361,52 @@ function update3DSpeechBubble() {
   }
 }
 
-export function spawnEnemiesForLevel(count = 3) {
+// BACKROOMS STALKER CREATION (DISTORTED WIREFRAME HUMANISTIC ENTITY)
+export function spawnEnemiesForLevel(count = 2) {
   entities.enemies.forEach(e => groups.dungeon.remove(e.mesh));
   entities.enemies = [];
 
   for (let i = 0; i < count; i++) {
-    const shadowMat = new THREE.MeshStandardMaterial({ color: 0x010203 });
-    const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const enemyMesh = new THREE.Group();
+    const stalkerGroup = new THREE.Group();
 
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.4, 2.2, 8), shadowMat);
-    body.position.y = 1.1;
-    enemyMesh.add(body);
+    // Pitch black wireframe material (glitched silhouette)
+    const entityMat = new THREE.MeshBasicMaterial({ color: 0x050505, wireframe: true });
+    const glowEyeMat = new THREE.MeshBasicMaterial({ color: 0xff1111 });
 
-    [-0.15, 0.15].forEach(x => {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), eyeMat);
-      eye.position.set(x, 1.8, -0.3);
-      enemyMesh.add(eye);
-    });
+    // Unnaturally tall torso
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.1, 2.6, 6), entityMat);
+    torso.position.y = 1.6;
+    torso.rotation.z = 0.1; // Slouched pose
+    stalkerGroup.add(torso);
 
-    enemyMesh.position.set((Math.random() - 0.5) * 36, 0, (Math.random() - 0.5) * 36);
-    groups.dungeon.add(enemyMesh);
+    // Distorted head
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.45, 0.35), entityMat);
+    head.position.set(0.1, 3.0, 0.05);
+    stalkerGroup.add(head);
 
-    entities.enemies.push({ mesh: enemyMesh, hp: 50, speed: 2.5 });
+    // Single unblinking hollow eye
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), glowEyeMat);
+    eye.position.set(0.1, 3.0, -0.18);
+    stalkerGroup.add(eye);
+
+    // Extremely long, thin limbs
+    const leftArm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 2.2), entityMat);
+    leftArm.position.set(-0.35, 1.7, 0);
+    leftArm.rotation.z = 0.25;
+    stalkerGroup.add(leftArm);
+
+    const rightArm = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 2.8), entityMat);
+    rightArm.position.set(0.4, 1.4, 0.1);
+    rightArm.rotation.z = -0.15;
+    stalkerGroup.add(rightArm);
+
+    // Spawn hidden in deep maze corners (far from player at (0, 1.6, 5))
+    const angle = Math.random() * Math.PI * 2;
+    const distance = 16 + Math.random() * 10;
+    stalkerGroup.position.set(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
+
+    groups.dungeon.add(stalkerGroup);
+    entities.enemies.push({ mesh: stalkerGroup, hp: 60, speed: 1.8, jitterTime: Math.random() * 10 });
   }
 }
 
@@ -404,12 +420,13 @@ export function enableHorrorAtmosphere() {
   if (sunLight) sunLight.intensity = 0;
 }
 
+// TUNED PLAYER HITBOX FOR SMOOTH NAVIGATION
 function checkCollisions(newPosition) {
   if (!groups.dungeon.visible) return false;
-  const playerRadius = 0.4;
+  const playerRadius = 0.2; // Reduced collision radius
   const playerBox = new THREE.Box3(
-    new THREE.Vector3(newPosition.x - playerRadius, 0, newPosition.z - playerRadius),
-    new THREE.Vector3(newPosition.x + playerRadius, 3.0, newPosition.z + playerRadius)
+    new THREE.Vector3(newPosition.x - playerRadius, 0.2, newPosition.z - playerRadius),
+    new THREE.Vector3(newPosition.x + playerRadius, 2.0, newPosition.z + playerRadius)
   );
 
   for (let box of colliders) {
@@ -545,10 +562,27 @@ function animate() {
 
   update3DSpeechBubble();
 
-  // Tentacle animation
+  // BACKROOMS ENTITY STALKING & JITTER ANIMATION
   if (groups.dungeon.visible && state.phase === 'arena') {
-    tentacleTimer -= delta;
+    entities.enemies.forEach(enemy => {
+      enemy.jitterTime += delta * 12.0;
 
+      // Unsettling micro-twitches / glitches
+      enemy.mesh.rotation.y = Math.sin(enemy.jitterTime * 0.5) * 0.15;
+      enemy.mesh.position.y = Math.sin(enemy.jitterTime * 2.0) * 0.05;
+
+      // Stalker movement towards player
+      const dirToPlayer = new THREE.Vector3().subVectors(groups.player.position, enemy.mesh.position);
+      dirToPlayer.y = 0;
+
+      if (dirToPlayer.length() > 2.0) {
+        dirToPlayer.normalize();
+        enemy.mesh.position.addScaledVector(dirToPlayer, enemy.speed * delta);
+      }
+    });
+
+    // Tentacle event timer
+    tentacleTimer -= delta;
     if (tentacleTimer <= 0 && !livingWallState.triggered) {
       livingWallState.triggered = true;
       entities.tentacle.visible = true;
@@ -596,7 +630,6 @@ function animate() {
       } else {
         cutsceneState.sequence = [];
         
-        // RESET CAMERA TO PLAYER EYE HEIGHT & CLEAR FOV DISTORTION
         camera.position.set(0, 0, 0);
         camera.rotation.set(0, 0, 0);
         pitch = 0;
@@ -607,7 +640,7 @@ function animate() {
     }
   }
 
-  // WASD Controls
+  // WASD Movement
   if (['tutorial', 'arena'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
