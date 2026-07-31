@@ -47,12 +47,9 @@ const cutsceneState = {
   onComplete: null,
   camStartPos: new THREE.Vector3(),
   camStartLook: new THREE.Vector3(),
-  currentLookTarget: new THREE.Vector3(),
-  shakeDuration: 0,
-  shakeIntensity: 0
+  currentLookTarget: new THREE.Vector3()
 };
 
-// Tentacle timer for random occurrence
 let tentacleTimer = Math.random() * 15 + 10;
 let livingWallState = { triggered: false, progress: 0 };
 let pitch = 0;
@@ -95,7 +92,6 @@ function setupPlayerAndFlashlight() {
   camera.rotation.set(0, 0, 0);
   groups.player.add(camera);
 
-  // Flashlight - Requires zero power
   flashlight = new THREE.SpotLight(0xffffff, 0, 32, Math.PI / 4, 0.3, 1);
   flashlight.position.set(0, 0, 0);
 
@@ -149,7 +145,7 @@ function setupShipDeck() {
   entities.captain.position.set(-2, 0, -1);
   groups.ship.add(entities.captain);
 
-  // Training Dummy
+  // Dummy
   entities.dummy = new THREE.Group();
   const base = new THREE.Mesh(new THREE.CylinderGeometry(0.75, 0.85, 0.2, 16), ironMat);
   base.position.y = 0.1;
@@ -166,7 +162,7 @@ function setupShipDeck() {
   entities.dummy.position.set(2, 0, -3);
   groups.ship.add(entities.dummy);
 
-  // Work Chores (3 Crates)
+  // Chores (Crates)
   for (let c = 0; c < 3; c++) {
     const crate = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), woodLight);
     crate.position.set(-4 + c * 1.5, 0.4, 3);
@@ -217,13 +213,11 @@ function setupDungeonMaze() {
     }
   }
 
-  // Living Wall Structure
   entities.livingWall = new THREE.Mesh(new THREE.BoxGeometry(6, 4.5, 1.2), wallMat);
   entities.livingWall.position.set(0, 2.25, -6);
   groups.dungeon.add(entities.livingWall);
   colliders.push(new THREE.Box3().setFromObject(entities.livingWall));
 
-  // Tentacle Object
   entities.tentacle = new THREE.Group();
   const tentacleMat = new THREE.MeshStandardMaterial({ color: 0x020a0d, roughness: 0.1 });
 
@@ -472,7 +466,7 @@ function animate() {
 
   update3DSpeechBubble();
 
-  // Periodic Random Tentacle Attacks
+  // Tentacle animation
   if (groups.dungeon.visible && state.phase === 'arena') {
     tentacleTimer -= delta;
 
@@ -494,12 +488,12 @@ function animate() {
         entities.livingWall.position.y = 2.25;
         entities.tentacle.visible = false;
         livingWallState.triggered = false;
-        tentacleTimer = Math.random() * 20 + 15; // Reset timer for next strike
+        tentacleTimer = Math.random() * 20 + 15;
       }
     }
   }
 
-  // Cutscene Motion
+  // Camera cutscenes
   if (state.phase === 'cutscene' && cutsceneState.sequence.length > 0) {
     const targetKeyframe = cutsceneState.sequence[cutsceneState.index];
     cutsceneState.progress += delta / targetKeyframe.duration;
@@ -527,7 +521,7 @@ function animate() {
     }
   }
 
-  // WASD Player Movement
+  // WASD Controls
   if (['tutorial', 'arena'].includes(state.phase)) {
     const moveSpeed = 5.2 * delta;
     const moveDir = new THREE.Vector3();
