@@ -70,7 +70,6 @@ export function initEngine() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  // Daytime ship lighting
   ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
   scene.add(ambientLight);
 
@@ -522,6 +521,13 @@ function animate() {
         cutsceneState.camStartLook.copy(cutsceneState.currentLookTarget);
       } else {
         cutsceneState.sequence = [];
+        
+        // RESET CAMERA TO PLAYER EYE HEIGHT & CLEAR FOV DISTORTION
+        camera.position.set(0, 0, 0);
+        camera.rotation.set(0, 0, 0);
+        pitch = 0;
+        camera.updateProjectionMatrix();
+
         if (cutsceneState.onComplete) cutsceneState.onComplete();
       }
     }
