@@ -1,6 +1,6 @@
-// DOOM-style Pseudo-3D Raycasting Engine
+// Classic DOOM-style Pseudo-3D Raycasting Engine
 export const state = {
-  phase: 'arena', // 'tutorial', 'arena', 'cutscene'
+  phase: 'arena',
   level: 1,
   hp: 100,
   flashlightOn: false
@@ -25,23 +25,21 @@ const player = {
   dirY: 0,
   planeX: 0,
   planeY: 0.66, // FOV
-  moveSpeed: 3.0,
-  rotSpeed: 2.0
+  moveSpeed: 3.2,
+  rotSpeed: 2.5
 };
 
-// Input handling
-const keys = { w: false, a: false, s: false, d: false, left: false, right: false };
+// Controls
+const keys = { w: false, s: false, a: false, d: false, left: false, right: false };
 
-// Maze Grid (1 = Wall, 0 = Empty Space, 2 = Exit Ladder)
+// Maze Grid
 let mapWidth = 16;
 let mapHeight = 16;
 let worldMap = [];
 
-// Entities (Doom-style 2D Sprites in 3D Space)
+// Entities & Mechanics
 let entities = [];
 let ghostCaptain = { x: -1, y: -1, visible: false, timer: 0 };
-
-// Flashlight spam detector
 let flashlightToggles = [];
 let lastDamageTime = 0;
 
@@ -63,7 +61,6 @@ function resizeCanvas() {
   canvas.height = window.innerHeight;
 }
 
-// Generate classic 2D maze grid
 function generateMaze(w, h) {
   worldMap = Array.from({ length: h }, () => Array(w).fill(1));
 
@@ -81,10 +78,9 @@ function generateMaze(w, h) {
   }
 
   carve(2, 2);
-  worldMap[2][2] = 0; // Spawn point
-  worldMap[h - 3][w - 3] = 2; // Ladder exit
+  worldMap[2][2] = 0;
+  worldMap[h - 3][w - 3] = 2; // Ladder Exit
 
-  // Spawn Backrooms Stalkers
   spawnEnemies();
 }
 
@@ -104,8 +100,8 @@ function setupInput() {
     const k = e.key.toLowerCase();
     if (k === 'w') keys.w = true;
     if (k === 's') keys.s = true;
-    if (k === 'a') keys.a = true;
-    if (k === 'd') keys.d = true;
+    if (k === 'a') keys.a = true; // Rotates Left
+    if (k === 'd') keys.d = true; // Rotates Right
     if (e.key === 'ArrowLeft') keys.left = true;
     if (e.key === 'ArrowRight') keys.right = true;
 
@@ -124,7 +120,6 @@ function setupInput() {
     }
 
     if (k === 'e') {
-      // Check ladder interaction
       let pGridX = Math.floor(player.x);
       let pGridY = Math.floor(player.y);
       if (worldMap[pGridY][pGridX] === 2) {
@@ -148,11 +143,9 @@ function setupInput() {
     if (e.key === 'ArrowRight') keys.right = false;
   });
 
-  // Mouse look controls
   window.addEventListener('mousemove', e => {
     if (document.pointerLockElement === canvas) {
-      let rot = -e.movementX * 0.003;
-      rotatePlayer(rot);
+      rotatePlayer(-e.movementX * 0.003);
     }
   });
 
@@ -188,9 +181,7 @@ function attackEnemy() {
 
     if (dist < 2.5) {
       enemy.hp -= 25;
-      if (enemy.hp <= 0) {
-        entities.splice(idx, 1);
-      }
+      if (enemy.hp <= 0) entities.splice(idx, 1);
     }
   });
 }
@@ -214,7 +205,6 @@ function showBanner(msg, duration = 3000) {
   }
 }
 
-// MAIN ENGINE LOOP (RAYCASTING & RENDERING)
 function gameLoop(now) {
   let dt = (now - lastTime) / 1000;
   lastTime = now;
@@ -222,7 +212,7 @@ function gameLoop(now) {
   updatePlayer(dt);
   updateEntities(dt);
 
-  renderRaycaster();
+  renderDoomRaycaster();
 
   requestAnimationFrame(gameLoop);
 }
@@ -231,16 +221,15 @@ function updatePlayer(dt) {
   let moveStep = player.moveSpeed * dt;
   let rotStep = player.rotSpeed * dt;
 
-  if (keys.left) rotatePlayer(rotStep);
-  if (keys.right) rotatePlayer(-rotStep);
+  // A and D key TURNING / ROTATION
+  if (keys.a || keys.left) rotatePlayer(rotStep);
+  if (keys.d || keys.right) rotatePlayer(-rotStep);
 
   let dx = 0, dy = 0;
   if (keys.w) { dx += player.dirX * moveStep; dy += player.dirY * moveStep; }
   if (keys.s) { dx -= player.dirX * moveStep; dy -= player.dirY * moveStep; }
-  if (keys.a) { dx -= player.planeX * moveStep; dy -= player.planeY * moveStep; }
-  if (keys.d) { dx += player.planeX * moveStep; dy += player.planeY * moveStep; }
 
-  // Collision with 2D Grid
+  // Grid Wall Collision
   let radius = 0.25;
   if (worldMap[Math.floor(player.y)][Math.floor(player.x + dx + Math.sign(dx) * radius)] !== 1) {
     player.x += dx;
@@ -261,18 +250,15 @@ function updateEntities(dt) {
     if (dist > 0.6) {
       enemy.x += (dx / dist) * enemy.speed * dt;
       enemy.y += (dy / dist) * enemy.speed * dt;
-    } else {
-      // Balanced damage (12 HP every 1.5 seconds)
-      if (now - lastDamageTime > 1500) {
-        state.hp -= 12;
-        lastDamageTime = now;
-        updateHUD();
-        showBanner("THE ENTITY SLASHED YOU!", 1500);
+    } else if (now - lastDamageTime > 1500) {
+      state.hp -= 12;
+      lastDamageTime = now;
+      updateHUD();
+      showBanner("THE ENTITY SLASHED YOU!", 1500);
 
-        if (state.hp <= 0) {
-          showBanner("YOU DIED...", 5000);
-          setTimeout(() => location.reload(), 3000);
-        }
+      if (state.hp <= 0) {
+        showBanner("YOU DIED...", 5000);
+        setTimeout(() => location.reload(), 3000);
       }
     }
   });
@@ -282,20 +268,19 @@ function updateEntities(dt) {
   }
 }
 
-// 2D TO pseudo-3D PROJECTION ENGINE (DOOM STYLE)
-function renderRaycaster() {
+// REAL DOOM-STYLE RENDERER WITH RETRO BRICK WALL PATTERNS
+function renderDoomRaycaster() {
   const w = canvas.width;
   const h = canvas.height;
 
-  // Background (Ceiling & Floor)
-  ctx.fillStyle = state.flashlightOn ? '#0d1117' : '#030406';
+  // Ceiling & Floor
+  ctx.fillStyle = state.flashlightOn ? '#1a222d' : '#05070a';
   ctx.fillRect(0, 0, w, h / 2);
-  ctx.fillStyle = '#080a0f';
+  ctx.fillStyle = '#11141a';
   ctx.fillRect(0, h / 2, w, h / 2);
 
   let zBuffer = new Array(w);
 
-  // RAYCASTING WALLS
   for (let x = 0; x < w; x++) {
     let cameraX = 2 * x / w - 1;
     let rayDirX = player.dirX + player.planeX * cameraX;
@@ -334,25 +319,35 @@ function renderRaycaster() {
     zBuffer[x] = perpWallDist;
 
     let lineHeight = Math.floor(h / perpWallDist);
-    let drawStart = -lineHeight / 2 + h / 2;
-    let drawEnd = lineHeight / 2 + h / 2;
+    let drawStart = Math.max(0, -lineHeight / 2 + h / 2);
+    let drawEnd = Math.min(h, lineHeight / 2 + h / 2);
 
-    // Lighting falloff
-    let darkness = Math.min(1, 1 / (perpWallDist * 0.4));
-    if (!state.flashlightOn) darkness *= 0.2;
+    // Wall Texture Stripe Mapping (Doom Brick Effect)
+    let wallX = side === 0 ? player.y + perpWallDist * rayDirY : player.x + perpWallDist * rayDirX;
+    wallX -= Math.floor(wallX);
+
+    let light = Math.min(1, 1.2 / perpWallDist);
+    if (!state.flashlightOn) light *= 0.25;
+
+    // Render Retro Textured Columns
+    let isMortar = (Math.floor(wallX * 16) % 4 === 0) || (Math.floor((drawStart / h) * 32) % 4 === 0);
 
     if (hit === 1) { // Wall
-      ctx.fillStyle = side === 1 
-        ? `rgba(20, 25, 35, ${darkness})` 
-        : `rgba(35, 45, 60, ${darkness})`;
+      let r = side === 1 ? 40 : 60;
+      let g = side === 1 ? 50 : 75;
+      let b = side === 1 ? 70 : 100;
+
+      if (isMortar) { r *= 0.5; g *= 0.5; b *= 0.5; }
+
+      ctx.fillStyle = `rgb(${r * light}, ${g * light}, ${b * light})`;
     } else if (hit === 2) { // Ladder Exit
-      ctx.fillStyle = `rgba(180, 120, 40, ${darkness})`;
+      ctx.fillStyle = `rgb(${200 * light}, ${140 * light}, ${40 * light})`;
     }
 
     ctx.fillRect(x, drawStart, 1, drawEnd - drawStart);
   }
 
-  // DRAW BILLBOARD SPRITES (STALKER & GHOST CAPTAIN)
+  // Draw 2D Sprites (Stalkers & Ghost)
   renderSprites(w, h, zBuffer);
 }
 
@@ -360,7 +355,6 @@ function renderSprites(w, h, zBuffer) {
   let spriteList = [...entities];
   if (ghostCaptain.visible) spriteList.push({ ...ghostCaptain, isGhost: true });
 
-  // Sort back to front
   spriteList.sort((a, b) => {
     let distA = (player.x - a.x) ** 2 + (player.y - a.y) ** 2;
     let distB = (player.x - b.x) ** 2 + (player.y - b.y) ** 2;
@@ -380,23 +374,24 @@ function renderSprites(w, h, zBuffer) {
       let spriteHeight = Math.abs(Math.floor(h / transformY));
       let spriteWidth = Math.abs(Math.floor(h / transformY));
 
-      let drawStartY = -spriteHeight / 2 + h / 2;
+      let drawStartY = Math.max(0, -spriteHeight / 2 + h / 2);
       let drawStartX = Math.floor(-spriteWidth / 2 + spriteScreenX);
 
       if (spriteScreenX > 0 && spriteScreenX < w && transformY < zBuffer[spriteScreenX]) {
-        // Draw Backrooms Entity / Ghost Captain Billboard Sprite
-        ctx.fillStyle = sprite.isGhost ? '#22ffcc' : '#ff1111';
+        // Doom Stalker / Ghost Sprite Rendering
+        ctx.fillStyle = sprite.isGhost ? 'rgba(34, 255, 204, 0.8)' : 'rgb(180, 20, 20)';
         ctx.fillRect(drawStartX, drawStartY, spriteWidth * 0.4, spriteHeight * 0.8);
 
-        // Glowing eyes
+        // Eyes
         ctx.fillStyle = '#ffffff';
-        ctx.fillRect(drawStartX + spriteWidth * 0.1, drawStartY + spriteHeight * 0.2, 4, 4);
+        ctx.fillRect(drawStartX + spriteWidth * 0.1, drawStartY + spriteHeight * 0.2, 5, 5);
+        ctx.fillRect(drawStartX + spriteWidth * 0.25, drawStartY + spriteHeight * 0.2, 5, 5);
       }
     }
   });
 }
 
-// Unused Three.js stubs to maintain compatibility
+// Unused Three.js compatibility stubs
 export function setPhase(p) { state.phase = p; }
 export function setShipVisibility() {}
 export function setDungeonVisibility() {}
