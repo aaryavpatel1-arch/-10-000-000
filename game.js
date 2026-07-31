@@ -1,5 +1,5 @@
 export const state = {
-  phase: 'tutorial', // Starts on the ship deck
+  phase: 'tutorial',
   level: 1,
   hp: 100,
   dummyHits: 0,
@@ -18,14 +18,13 @@ export const callbacks = {
 let canvas, ctx;
 let lastTime = performance.now();
 
-// Player
 const player = {
   x: 2.5,
   y: 2.5,
   dirX: -1,
   dirY: 0,
   planeX: 0,
-  planeY: 0.66, // FOV
+  planeY: 0.66,
   moveSpeed: 3.2,
   rotSpeed: 2.5
 };
@@ -43,8 +42,9 @@ let lastDamageTime = 0;
 
 export function initEngine() {
   canvas = document.getElementById('gl-canvas');
+  if (!canvas) return;
+  
   ctx = canvas.getContext('2d');
-
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);
 
@@ -63,7 +63,6 @@ function resizeCanvas() {
 
 function loadMapForPhase() {
   if (state.phase === 'tutorial') {
-    // Ship Deck Map (Room with Dummy & Crates)
     worldMap = [
       [1,1,1,1,1,1,1,1],
       [1,0,0,0,0,0,0,1],
@@ -77,7 +76,6 @@ function loadMapForPhase() {
     player.x = 2.5;
     player.y = 2.5;
     
-    // Interactive Objects (Dummy & Crates)
     entities = [
       { x: 5.5, y: 2.5, type: 'dummy', hp: 5 },
       { x: 3.5, y: 4.5, type: 'crate' },
@@ -85,7 +83,6 @@ function loadMapForPhase() {
       { x: 5.5, y: 4.5, type: 'crate' }
     ];
   } else {
-    // Dungeon Maze Map
     mapWidth = 16;
     mapHeight = 16;
     generateMaze(mapWidth, mapHeight);
@@ -110,7 +107,7 @@ function generateMaze(w, h) {
 
   carve(2, 2);
   worldMap[2][2] = 0;
-  worldMap[h - 3][w - 3] = 2; // Exit Ladder
+  worldMap[h - 3][w - 3] = 2;
 
   spawnEnemies();
 }
@@ -131,8 +128,8 @@ function setupInput() {
     const k = e.key.toLowerCase();
     if (k === 'w') keys.w = true;
     if (k === 's') keys.s = true;
-    if (k === 'a') keys.a = true; // Rotates Left
-    if (k === 'd') keys.d = true; // Rotates Right
+    if (k === 'a') keys.a = true;
+    if (k === 'd') keys.d = true;
     if (e.key === 'ArrowLeft') keys.left = true;
     if (e.key === 'ArrowRight') keys.right = true;
 
@@ -322,14 +319,12 @@ function updateEntities(dt) {
   }
 }
 
-// 2.5D Doom Raycasting Engine
 function renderDoomRaycaster() {
   if (!ctx) return;
 
   const w = canvas.width;
   const h = canvas.height;
 
-  // Floor & Ceiling
   ctx.fillStyle = state.flashlightOn ? '#1a222d' : '#05070a';
   ctx.fillRect(0, 0, w, h / 2);
   ctx.fillStyle = state.phase === 'tutorial' ? '#4a2c11' : '#11141a';
@@ -482,7 +477,6 @@ export function spawnEnemiesForLevel(lvl) {
   loadMapForPhase();
 }
 
-// Stubs for engine compatibility
 export function setShipVisibility() {}
 export function setDungeonVisibility() {}
 export function enableHorrorAtmosphere() {}
