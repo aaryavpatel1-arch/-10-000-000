@@ -59,6 +59,6 @@ window.addEventListener('DOMContentLoaded', () => {
     setPhase('arena');
     spawnEnemiesForLevel(state.level);
     updateHUD();
-    showBannerHint("Press 'F' for Flashlight. Find the ladder and press 'E' to escape to the next level!", 6000);
+    showBannerHint("Press 'F' for Flashlight. Find the ladder in the maze and press 'E' to ascend!", 6000);
   };
 });
