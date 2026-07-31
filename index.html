@@ -1,40 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Living Maze Game</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>10,000,000</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
   <canvas id="gl-canvas"></canvas>
 
-  <div id="hud" class="hidden">
-    <div id="zone-display">ZONE: SHIP DECK</div>
-    <div id="top-hint">STRIKE THE DUMMY 5 TIMES TO PREPARE</div>
-    
-    <div class="bar-container">
-      <span class="bar-label">HP:</span>
-      <div class="bar-bg"><div id="health-bar"></div></div>
-    </div>
-
-    <div class="battery-container">
-      <span class="bar-label">FLASHLIGHT (F):</span>
-      <span id="fl-status">OFF (100%)</span>
-    </div>
+  <div id="ui-overlay">
+    <div id="zone-display">SHIP DECK</div>
+    <div>FLASHLIGHT: <span id="fl-status">OFF</span> (Press F)</div>
+    <div id="health-bar-container"><div id="health-bar"></div></div>
   </div>
 
-  <div id="start-screen">
-    <h1>THE LIVING MAZE</h1>
-    <button id="start-btn">CLICK TO PLAY</button>
-  </div>
+  <div id="captain-bubble">Welcome aboard, boy!</div>
 
-  <script type="module">
-    import { initGame } from './cutscenes.js';
-    document.getElementById('start-btn').addEventListener('click', () => {
-      initGame();
-    });
-  </script>
+  <div id="banner-message"></div>
+
+  <script type="module" src="cutscenes.js"></script>
 </body>
 </html>
