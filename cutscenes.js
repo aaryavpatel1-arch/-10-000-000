@@ -27,12 +27,13 @@ window.addEventListener('DOMContentLoaded', () => {
   initEngine();
   updateHUD();
 
-  // 1. Cutscene plays first BEFORE training
+  // 1. Cutscene sequence looking directly at Captain & Deck
   startCinematicSequence([
-    { pos: { x: 0, y: 8, z: 14 }, look: { x: 0, y: 1.6, z: 0 }, duration: 2.5 },
-    { pos: { x: -2, y: 3, z: 3 }, look: { x: -2, y: 2, z: -1 }, duration: 2.0 },
-    { pos: { x: 0, y: 1.6, z: 5 }, look: { x: 0, y: 1.6, z: 0 }, duration: 1.5 }
+    { pos: { x: 0, y: 3, z: 8 }, look: { x: -2, y: 1, z: -1 }, duration: 2.0 },
+    { pos: { x: -1, y: 1.8, z: 2 }, look: { x: -2, y: 1.5, z: -1 }, duration: 2.0 },
+    { pos: { x: 0, y: 1.6, z: 3 }, look: { x: 2, y: 1.2, z: -3 }, duration: 1.5 }
   ], () => {
+    // Cutscene complete -> Start tutorial
     setPhase('tutorial');
     setCaptainSpeech("Welcome aboard, boy! Go hit that dummy 5 times!");
     showBannerHint("Click on the practice dummy to attack!", 4000);
